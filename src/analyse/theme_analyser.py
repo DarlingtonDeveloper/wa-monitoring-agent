@@ -1,22 +1,27 @@
 """Per-theme analysis using Claude — two-pass approach.
 
-Pass 1: Extract structured facts from source items (who, what, when, numbers).
-Pass 2: Analyse relevance and produce item cards from extracted facts.
+Pass 1: Extract structured facts from source items (Haiku — fast, cheap).
+Pass 2: Analyse relevance and produce item cards (Sonnet — balanced).
 
 Separating extraction from interpretation improves both accuracy and traceability.
 """
 
 import json
 import logging
-import re
 
 import anthropic
 from opik import track
 
 from score.keyword_scorer import flatten_keywords
+from utils.retry import retry_api_call
 
 log = logging.getLogger(__name__)
 
+# ── Model assignments (tiered) ──
+MODEL_EXTRACTION = "claude-haiku-4-5-20251001"
+MODEL_ANALYSIS = "claude-sonnet-4-20250514"
+
+# ── Theme routing ──
 THEME_ROUTING = {
     "policy_government": {
         "source_types": ["govuk"],
@@ -49,6 +54,17 @@ THEME_ROUTING = {
     },
 }
 
+# Priority order for cross-theme dedup (most specific first)
+THEME_PRIORITY = [
+    "parliamentary",
+    "policy_government",
+    "regulatory_legal",
+    "stakeholder_third_party",
+    "competitor_industry",
+    "social_media",
+    "media_coverage",
+]
+
 THEME_SPECIFIC_INSTRUCTIONS = {
     "parliamentary": (
         'Also produce a "routine_mentions" array for lower-significance parliamentary references. '
@@ -74,7 +90,54 @@ THEME_SPECIFIC_INSTRUCTIONS = {
     ),
 }
 
-# ── PASS 1: Fact extraction ──
+# ── Tool definitions for structured output ──
+EXTRACT_FACTS_TOOL = {
+    "name": "extract_facts",
+    "description": "Submit extracted facts from source items as a structured array.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "facts": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "fingerprint": {"type": "string"},
+                        "who": {"type": ["string", "null"]},
+                        "what": {"type": ["string", "null"]},
+                        "when": {"type": ["string", "null"]},
+                        "numbers": {"type": ["string", "null"]},
+                        "type": {"type": "string"},
+                    },
+                    "required": ["fingerprint"],
+                },
+            },
+        },
+        "required": ["facts"],
+    },
+}
+
+SUBMIT_ANALYSIS_TOOL = {
+    "name": "submit_analysis",
+    "description": "Submit theme analysis results with item cards and theme-specific data.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "items": {"type": "array", "items": {"type": "object"}},
+            "no_developments": {"type": "boolean"},
+            "routine_mentions": {"type": "array", "items": {"type": "object"}},
+            "coverage_table": {"type": "array", "items": {"type": "object"}},
+            "significant_items": {"type": "array", "items": {"type": "object"}},
+            "table": {"type": "array", "items": {"type": "object"}},
+            "summary": {"type": "string"},
+            "metrics": {"type": "object"},
+            "notable_posts": {"type": "array", "items": {"type": "object"}},
+        },
+        "required": ["items", "no_developments"],
+    },
+}
+
+# ── Prompts ──
 EXTRACTION_PROMPT = """Extract structured facts from the following source items.
 
 For each item, extract:
@@ -91,9 +154,8 @@ If a field cannot be determined from the text, use null.
 ITEMS:
 {items_text}
 
-Return ONLY a JSON array of fact objects."""
+Use the extract_facts tool to submit your results."""
 
-# ── PASS 2: Analysis from facts ──
 ANALYSIS_PROMPT = """You are a senior public affairs analyst at {consultancy_name}, a Westminster lobbying and public affairs firm.
 
 CLIENT CONTEXT:
@@ -129,10 +191,18 @@ RULES:
 - Summarise in own words with attribution. Never reproduce source text.
 - Do not editorialise or offer political opinion. Facts and analysis only.
 - Every item must answer: What happened? Why does it matter to THIS client? What should we do?
-- If nothing significant occurred in this theme, return an empty items array.
-- Use arrow characters (\u2191 \u2193 \u2194) in any trend descriptions.
+- If nothing significant occurred in this theme, return an empty items array with no_developments: true.
+- Use arrow characters (\\u2191 \\u2193 \\u2194) in any trend descriptions.
 
-Return ONLY a JSON object: {{"items": [...], "no_developments": true/false}}"""
+Use the submit_analysis tool to submit your results."""
+
+
+def _get_tool_input(response, tool_name: str) -> dict:
+    """Extract tool input from a forced tool_use response."""
+    for block in response.content:
+        if block.type == "tool_use" and block.name == tool_name:
+            return block.input
+    raise ValueError(f"No '{tool_name}' tool_use block in response")
 
 
 def build_client_context(config: dict) -> str:
@@ -159,7 +229,7 @@ def build_client_context(config: dict) -> str:
 
 
 def route_items_to_themes(items: list[dict], config: dict) -> dict[str, list[dict]]:
-    """Route items to monitoring themes based on source type and keyword matches."""
+    """Route items to monitoring themes. Each item goes to exactly one theme."""
     routing = {k: dict(v) for k, v in THEME_ROUTING.items()}
 
     media_names = (
@@ -180,37 +250,35 @@ def route_items_to_themes(items: list[dict], config: dict) -> dict[str, list[dic
     for item in items:
         text = f"{item.get('title', '')} {item.get('content', '')} {item.get('source_name', '')}".lower()
         source_type = item.get("source_type", "")
-        matched = False
+        assigned = False
 
-        for theme_id, rules in routing.items():
+        # Priority 1: source type match (definitive routing)
+        for theme_id in THEME_PRIORITY:
+            rules = routing[theme_id]
             if source_type in rules.get("source_types", []):
                 theme_items[theme_id].append(item)
-                matched = True
-                continue
-            if any(kw in text for kw in rules.get("keywords", [])):
-                theme_items[theme_id].append(item)
-                matched = True
+                assigned = True
+                break
 
-        if not matched and item.get("relevance_score", 0) >= 0.15:
+        if assigned:
+            continue
+
+        # Priority 2: best keyword match count, tie-broken by theme priority
+        best_theme = None
+        best_count = 0
+        for theme_id in THEME_PRIORITY:
+            rules = routing[theme_id]
+            count = sum(1 for kw in rules.get("keywords", []) if kw in text)
+            if count > best_count:
+                best_count = count
+                best_theme = theme_id
+
+        if best_theme:
+            theme_items[best_theme].append(item)
+        elif item.get("relevance_score", 0) >= 0.15:
             theme_items["policy_government"].append(item)
 
     return theme_items
-
-
-def _parse_json_response(text: str) -> dict | list:
-    """Parse JSON from Claude response, stripping markdown fences."""
-    text = re.sub(r"```json\s*", "", text)
-    text = re.sub(r"```\s*", "", text)
-    return json.loads(text.strip())
-
-
-def _get_text(response) -> str:
-    """Extract text from Claude response."""
-    text = ""
-    for block in response.content:
-        if hasattr(block, "text"):
-            text += block.text
-    return text
 
 
 @track(name="fact_extraction")
@@ -218,7 +286,7 @@ def _extract_facts(
     items: list[dict],
     anthropic_client: anthropic.Anthropic,
 ) -> list[dict]:
-    """Pass 1: Extract structured facts from source items."""
+    """Pass 1: Extract structured facts from source items (Haiku — fast, cheap)."""
     items_text = ""
     for i, item in enumerate(items[:30], 1):
         items_text += (
@@ -232,12 +300,16 @@ def _extract_facts(
     prompt = EXTRACTION_PROMPT.format(items_text=items_text)
 
     try:
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+        response = retry_api_call(
+            anthropic_client.messages.create,
+            model=MODEL_EXTRACTION,
             max_tokens=4096,
+            tools=[EXTRACT_FACTS_TOOL],
+            tool_choice={"type": "tool", "name": "extract_facts"},
             messages=[{"role": "user", "content": prompt}],
         )
-        return _parse_json_response(_get_text(response))
+        result = _get_tool_input(response, "extract_facts")
+        return result.get("facts", [])
     except Exception as e:
         log.warning(f"Fact extraction failed: {e}")
         return []
@@ -274,13 +346,13 @@ def analyse_theme(
             base = {"table": []}
         return base
 
-    # ── Pass 1: Extract facts ──
+    # ── Pass 1: Extract facts (Haiku) ──
     facts = _extract_facts(items, anthropic_client)
     if not facts:
         log.warning(f"No facts extracted for theme '{theme_id}', falling back to single-pass")
         facts = []
 
-    # ── Pass 2: Analyse from facts ──
+    # ── Pass 2: Analyse from facts (Sonnet) ──
     items_brief = ""
     for i, item in enumerate(items[:30], 1):
         items_brief += (
@@ -301,13 +373,16 @@ def analyse_theme(
     )
 
     try:
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+        response = retry_api_call(
+            anthropic_client.messages.create,
+            model=MODEL_ANALYSIS,
             max_tokens=4096,
+            tools=[SUBMIT_ANALYSIS_TOOL],
+            tool_choice={"type": "tool", "name": "submit_analysis"},
             messages=[{"role": "user", "content": prompt}],
         )
 
-        result = _parse_json_response(_get_text(response))
+        result = _get_tool_input(response, "submit_analysis")
 
         if "items" not in result:
             result["items"] = result.get("significant_items", [])

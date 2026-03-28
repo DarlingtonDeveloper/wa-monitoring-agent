@@ -98,6 +98,15 @@ async def analyse(
     # Ensure all sections have required structure
     _ensure_section_structure(analysis["sections"])
 
+    # Citation verification — flag any source_items fingerprints not in collected items
+    citation_warnings = _verify_citations(analysis, items)
+    if citation_warnings:
+        log.warning(f"Citation verification: {len(citation_warnings)} broken references")
+        for w in citation_warnings[:10]:
+            log.warning(f"  - {w}")
+    else:
+        log.info("Citation verification: all source_items references valid")
+
     # Validate
     import sys
     from pathlib import Path
@@ -112,6 +121,34 @@ async def analyse(
         log.info("Analysis validates against schema")
 
     return analysis
+
+
+def _verify_citations(analysis: dict, items: list[dict]) -> list[str]:
+    """Verify that all source_items fingerprints point to real collected items."""
+    valid_fps = {item["fingerprint"] for item in items if "fingerprint" in item}
+    warnings = []
+
+    for theme_id, theme_data in analysis.get("sections", {}).items():
+        all_items = (
+            theme_data.get("items", []) +
+            theme_data.get("significant_items", [])
+        )
+        for item in all_items:
+            bad_fps = []
+            for fp in item.get("source_items", []):
+                if fp not in valid_fps:
+                    bad_fps.append(fp)
+                    warnings.append(
+                        f"{item.get('ref', '?')}: fingerprint '{fp}' not in collected items"
+                    )
+            # Tag the item so the DOCX generator can flag it
+            if bad_fps:
+                item["citation_warnings"] = bad_fps
+                # Lower confidence for items with broken citations
+                if "confidence" in item:
+                    item["confidence"] = max(0.3, item["confidence"] - 0.2)
+
+    return warnings
 
 
 def _ensure_section_structure(sections: dict):

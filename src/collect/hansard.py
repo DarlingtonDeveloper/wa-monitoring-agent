@@ -7,6 +7,8 @@ from datetime import datetime
 
 import httpx
 
+from utils.retry import retry_async_call
+
 log = logging.getLogger(__name__)
 
 # Typed endpoints return full result sets (unlike /search.json which caps at 4 per type)
@@ -32,7 +34,7 @@ async def _resolve_url(client: httpx.AsyncClient, ext_id: str) -> str:
     if not ext_id:
         return ""
     try:
-        resp = await client.get(REDIRECT_URL, params={"externalId": ext_id})
+        resp = await retry_async_call(client.get, REDIRECT_URL, params={"externalId": ext_id})
         if resp.status_code == 200:
             path = resp.text.strip().strip('"')
             return f"https://hansard.parliament.uk{path}"
@@ -94,7 +96,7 @@ async def _search_endpoint(
             "endDate": end.strftime("%Y-%m-%d"),
             "take": 50,
         }
-        resp = await client.get(url, params=params)
+        resp = await retry_async_call(client.get, url, params=params)
 
         if resp.status_code in (404, 422, 500, 502, 503):
             log.debug(f"Hansard {resp.status_code} for '{term}' at {url}")

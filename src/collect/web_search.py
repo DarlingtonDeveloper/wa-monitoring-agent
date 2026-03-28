@@ -8,6 +8,8 @@ from datetime import datetime
 
 import anthropic
 
+from utils.retry import retry_api_call
+
 log = logging.getLogger(__name__)
 
 
@@ -108,7 +110,8 @@ def collect(
 
     for query in queries:
         try:
-            response = anthropic_client.messages.create(
+            response = retry_api_call(
+                anthropic_client.messages.create,
                 model="claude-sonnet-4-20250514",
                 max_tokens=2048,
                 tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],

@@ -1,14 +1,37 @@
-"""LLM-as-judge evaluation using Opik."""
+"""LLM-as-judge evaluation using Opus for highest-quality assessment."""
 
-import json
 import logging
 import os
-from datetime import datetime
 
 import anthropic
 from opik import track
 
+from utils.retry import retry_api_call
+
 log = logging.getLogger(__name__)
+
+MODEL_JUDGE = "claude-opus-4-6"
+
+SUBMIT_SCORE_TOOL = {
+    "name": "submit_score",
+    "description": "Submit the evaluation score and reasoning.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "reason": {"type": "string"},
+        },
+        "required": ["score", "reason"],
+    },
+}
+
+
+def _get_tool_input(response, tool_name: str) -> dict:
+    """Extract tool input from a forced tool_use response."""
+    for block in response.content:
+        if block.type == "tool_use" and block.name == tool_name:
+            return block.input
+    raise ValueError(f"No '{tool_name}' tool_use block in response")
 
 
 def _build_client_context(config: dict) -> str:
@@ -22,9 +45,7 @@ def _build_client_context(config: dict) -> str:
 
 
 def build_factuality_cases(analysis: dict, items_cache: list[dict]) -> list[dict]:
-    """
-    For each AnalysedItem, build a factuality evaluation case.
-    """
+    """For each AnalysedItem, build a factuality evaluation case."""
     cases = []
     items_by_fp = {item["fingerprint"]: item for item in items_cache}
 
@@ -51,10 +72,7 @@ def build_factuality_cases(analysis: dict, items_cache: list[dict]) -> list[dict
 
 @track(name="factuality_evaluation")
 def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
-    """
-    Check factuality of analysed items against source material.
-    Uses Claude as judge since Opik's built-in metrics may not be available.
-    """
+    """Check factuality of analysed items against source material (Opus judge)."""
     cases = build_factuality_cases(analysis, items_cache)
 
     if not cases:
@@ -68,9 +86,12 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
 
     for case in cases:
         try:
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response = retry_api_call(
+                client.messages.create,
+                model=MODEL_JUDGE,
                 max_tokens=256,
+                tools=[SUBMIT_SCORE_TOOL],
+                tool_choice={"type": "tool", "name": "submit_score"},
                 messages=[{
                     "role": "user",
                     "content": (
@@ -80,17 +101,12 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
                         f"ANALYSIS OUTPUT:\n{case['output']}\n\n"
                         "Score 0-1 how well the analysis is supported by the source material. "
                         "1.0 = fully supported, 0.0 = completely fabricated.\n"
-                        "Return ONLY a JSON object: {\"score\": float, \"reason\": \"brief\"}"
+                        "Use the submit_score tool to submit your evaluation."
                     ),
                 }],
             )
 
-            text = ""
-            for block in response.content:
-                if hasattr(block, "text"):
-                    text += block.text
-
-            result = json.loads(text.strip().strip("`").replace("```json", "").replace("```", ""))
+            result = _get_tool_input(response, "submit_score")
             score = float(result.get("score", 0))
             scores.append(score)
 
@@ -99,7 +115,7 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
 
         except Exception as e:
             log.warning(f"Factuality check failed for {case['reference']}: {e}")
-            scores.append(0.5)  # Uncertain = middle score
+            scores.append(0.5)
 
     mean_score = sum(scores) / len(scores) if scores else 0.0
 
@@ -112,10 +128,7 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
 
 @track(name="specificity_evaluation")
 def run_specificity_check(analysis: dict, config: dict) -> dict:
-    """
-    Check whether client_relevance text is specific to the client
-    or generic analysis that could apply to any energy company.
-    """
+    """Check whether client_relevance text is specific to the client (Opus judge)."""
     client_name = config["client"]["name"]
     client_context = _build_client_context(config)
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -139,9 +152,12 @@ def run_specificity_check(analysis: dict, config: dict) -> dict:
 
     for case in cases:
         try:
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response = retry_api_call(
+                client.messages.create,
+                model=MODEL_JUDGE,
                 max_tokens=256,
+                tools=[SUBMIT_SCORE_TOOL],
+                tool_choice={"type": "tool", "name": "submit_score"},
                 messages=[{
                     "role": "user",
                     "content": (
@@ -157,17 +173,12 @@ def run_specificity_check(analysis: dict, config: dict) -> dict:
                         "- 0.7: Moderately specific. References the client's sector position but not projects.\n"
                         "- 0.4: Generic. Could apply to any offshore wind developer.\n"
                         "- 0.1: Completely generic. Could apply to any energy company.\n\n"
-                        'Return ONLY a JSON object: {"score": float, "reason": "brief explanation"}'
+                        "Use the submit_score tool to submit your evaluation."
                     ),
                 }],
             )
 
-            text = ""
-            for block in response.content:
-                if hasattr(block, "text"):
-                    text += block.text
-
-            result = json.loads(text.strip().strip("`").replace("```json", "").replace("```", ""))
+            result = _get_tool_input(response, "submit_score")
             score = float(result.get("score", 0))
             scores.append(score)
 

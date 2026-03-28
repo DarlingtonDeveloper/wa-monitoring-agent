@@ -1,13 +1,99 @@
-"""Cross-theme synthesis — executive summary, forward look, emerging themes."""
+"""Cross-theme synthesis — executive summary, forward look, emerging themes.
+
+Uses Opus with extended thinking for the highest-quality cross-cutting analysis.
+"""
 
 import json
 import logging
-import re
 
 import anthropic
 from opik import track
 
+from utils.retry import retry_api_call
+
 log = logging.getLogger(__name__)
+
+MODEL_SYNTHESIS = "claude-opus-4-6"
+
+SUBMIT_SYNTHESIS_TOOL = {
+    "name": "submit_synthesis",
+    "description": "Submit the cross-theme synthesis results.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "executive_summary": {
+                "type": "object",
+                "properties": {
+                    "top_line": {"type": "string"},
+                    "key_developments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "rag": {"type": "string"},
+                                "development": {"type": "string"},
+                                "relevance": {"type": "string"},
+                                "recommended_action": {"type": "string"},
+                                "section_ref": {"type": "string"},
+                                "confidence": {"type": "number"},
+                            },
+                        },
+                    },
+                },
+                "required": ["top_line", "key_developments"],
+            },
+            "forward_look": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "date": {"type": "string"},
+                        "event": {"type": "string"},
+                        "relevance": {"type": "string"},
+                        "preparation": {"type": "string"},
+                    },
+                },
+            },
+            "emerging_themes": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "actions_tracker": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "ref": {"type": "string"},
+                        "action": {"type": "string"},
+                        "owner": {"type": "string"},
+                        "deadline": {"type": "string"},
+                        "origin": {"type": "string"},
+                        "status": {"type": "string"},
+                    },
+                },
+            },
+            "coverage_summary": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "metric": {"type": "string"},
+                        "this_week": {"type": "string"},
+                        "previous_week": {"type": "string"},
+                        "trend": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "required": [
+            "executive_summary",
+            "forward_look",
+            "emerging_themes",
+            "actions_tracker",
+            "coverage_summary",
+        ],
+    },
+}
 
 SYNTHESIS_PROMPT = """You are a senior public affairs analyst at {consultancy_name}.
 
@@ -37,10 +123,18 @@ Produce:
 
 5. COVERAGE SUMMARY
    Array of metrics: total media mentions (client), national media mentions, trade/specialist mentions, social media mentions (client), parliamentary mentions (client + key issues), competitor share of voice (top 3). Each: metric, this_week (string), previous_week ("[Baseline TBC]"), trend.
-   IMPORTANT: Use arrow unicode characters in trend values: \u2191 for increase, \u2193 for decrease, \u2194 for stable. Example: "\u2191 Significant increase" or "\u2194 Stable".
+   IMPORTANT: Use arrow unicode characters in trend values: \\u2191 for increase, \\u2193 for decrease, \\u2194 for stable. Example: "\\u2191 Significant increase" or "\\u2194 Stable".
    IMPORTANT: All values in this_week and previous_week MUST be strings, even if they are numbers. E.g. "12" not 12.
 
-Return ONLY a JSON object with keys: executive_summary, forward_look, emerging_themes, actions_tracker, coverage_summary."""
+Use the submit_synthesis tool to submit your results."""
+
+
+def _get_tool_input(response, tool_name: str) -> dict:
+    """Extract tool input from a forced tool_use response."""
+    for block in response.content:
+        if block.type == "tool_use" and block.name == tool_name:
+            return block.input
+    raise ValueError(f"No '{tool_name}' tool_use block in response")
 
 
 @track(name="synthesis")
@@ -50,7 +144,7 @@ def synthesise(
     config: dict,
     anthropic_client: anthropic.Anthropic,
 ) -> dict:
-    """Synthesise theme results into cross-cutting sections."""
+    """Synthesise theme results into cross-cutting sections (Opus + extended thinking)."""
     client_name = config["client"]["name"]
     consultancy = config.get("report", {}).get("consultancy_name", "WA Communications")
 
@@ -80,20 +174,17 @@ def synthesise(
     )
 
     try:
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+        response = retry_api_call(
+            anthropic_client.messages.create,
+            model=MODEL_SYNTHESIS,
             max_tokens=4096,
+            thinking={"type": "enabled", "budget_tokens": 16000},
+            tools=[SUBMIT_SYNTHESIS_TOOL],
+            tool_choice={"type": "tool", "name": "submit_synthesis"},
             messages=[{"role": "user", "content": prompt}],
         )
 
-        text = ""
-        for block in response.content:
-            if hasattr(block, "text"):
-                text += block.text
-
-        text = re.sub(r"```json\s*", "", text)
-        text = re.sub(r"```\s*", "", text)
-        result = json.loads(text.strip())
+        result = _get_tool_input(response, "submit_synthesis")
 
         # Validate expected keys
         expected = ["executive_summary", "forward_look", "emerging_themes",
@@ -105,9 +196,6 @@ def synthesise(
 
         return result
 
-    except json.JSONDecodeError as e:
-        log.error(f"Failed to parse synthesis response: {e}")
-        return _fallback_synthesis(reporting_period)
     except Exception as e:
         log.error(f"Synthesis failed: {e}")
         return _fallback_synthesis(reporting_period)

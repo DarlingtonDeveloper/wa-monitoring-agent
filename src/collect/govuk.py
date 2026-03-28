@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 
 import httpx
 
+from utils.retry import retry_async_call
+
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://www.gov.uk/api/search.json"
@@ -83,7 +85,7 @@ async def collect(
                 "count": 20,
                 "order": "-public_timestamp",  # Newest first (NOT "most-recent" which returns 422)
             }
-            resp = await client.get(BASE_URL, params=params)
+            resp = await retry_async_call(client.get, BASE_URL, params=params)
 
             if resp.status_code in (404, 422, 500, 502, 503):
                 log.warning(f"GOV.UK API {resp.status_code} for '{query_params['q']}'")
