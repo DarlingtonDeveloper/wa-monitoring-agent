@@ -1,13 +1,16 @@
 """Collection layer — pulls raw items from public sources."""
 
+import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import anthropic
 import httpx
 
 from .hansard import collect as collect_hansard
 from .govuk import collect as collect_govuk
+from .parliament import collect as collect_parliament
+from .rss import collect as collect_rss
 from .web_search import collect as collect_web
 from .forward_scan import collect as collect_forward
 
@@ -21,31 +24,32 @@ async def collect_all(
 ) -> list[dict]:
     """
     Run all collectors, merge results, return combined list.
-    Hansard and GOV.UK run in parallel (async). Web search and forward scan
-    run sequentially (Anthropic API).
+    API collectors run in parallel. Anthropic collectors run sequentially.
     """
-    week_end = week_start + __import__("datetime").timedelta(days=4)
+    week_end = week_start + timedelta(days=4)
     results = []
 
-    # Parallel: Hansard + GOV.UK
+    # Parallel: Hansard + GOV.UK + Parliament APIs + RSS
     async with httpx.AsyncClient(timeout=30) as client:
-        import asyncio
-        hansard_task = collect_hansard(client, config, week_start, week_end)
-        govuk_task = collect_govuk(client, config, week_start, week_end)
-        hansard_items, govuk_items = await asyncio.gather(
-            hansard_task, govuk_task, return_exceptions=True
+        hansard_items, govuk_items, parliament_items, rss_items = await asyncio.gather(
+            collect_hansard(client, config, week_start, week_end),
+            collect_govuk(client, config, week_start, week_end),
+            collect_parliament(client, config, week_start, week_end),
+            collect_rss(client, config, week_start, week_end),
+            return_exceptions=True,
         )
 
-        if isinstance(hansard_items, Exception):
-            log.error(f"Hansard collector failed: {hansard_items}")
-            hansard_items = []
-        if isinstance(govuk_items, Exception):
-            log.error(f"GOV.UK collector failed: {govuk_items}")
-            govuk_items = []
-
-        results.extend(hansard_items)
-        results.extend(govuk_items)
-        log.info(f"Hansard: {len(hansard_items)} items | GOV.UK: {len(govuk_items)} items")
+        for name, items in [
+            ("Hansard", hansard_items),
+            ("GOV.UK", govuk_items),
+            ("Parliament APIs", parliament_items),
+            ("RSS", rss_items),
+        ]:
+            if isinstance(items, Exception):
+                log.error(f"{name} collector failed: {items}")
+            else:
+                results.extend(items)
+                log.info(f"{name}: {len(items)} items")
 
     # Sequential: Web search + Forward scan (Anthropic API)
     ant_client = anthropic.Anthropic(api_key=anthropic_api_key)

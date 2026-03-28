@@ -1,4 +1,4 @@
-"""Hansard API collector."""
+"""Hansard API collector — uses typed contribution endpoints for bulk retrieval."""
 
 import asyncio
 import hashlib
@@ -9,7 +9,10 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-BASE_URL = "https://hansard-api.parliament.uk/search.json"
+# Typed endpoints return full result sets (unlike /search.json which caps at 4 per type)
+SPOKEN_URL = "https://hansard-api.parliament.uk/search/contributions/Spoken.json"
+WRITTEN_URL = "https://hansard-api.parliament.uk/search/contributions/Written.json"
+REDIRECT_URL = "https://hansard-api.parliament.uk/search/parlisearchredirect.json"
 
 SEARCH_TERMS = [
     "RWE", "offshore wind", "energy security", "clean power",
@@ -20,23 +23,45 @@ SEARCH_TERMS = [
 
 
 def _fingerprint(url: str, title: str) -> str:
-    """Generate a 12-char dedup hash."""
     raw = f"{url}:{title}".encode()
     return hashlib.sha256(raw).hexdigest()[:12]
 
 
-def _extract_item(result: dict, keyword: str) -> dict:
-    """Extract a RawItem dict from a Hansard API result."""
-    title = result.get("Title") or result.get("MemberName") or ""
-    date_str = result.get("Date") or result.get("SittingDate") or ""
+async def _resolve_url(client: httpx.AsyncClient, ext_id: str) -> str:
+    """Resolve a ContributionExtId to a full Hansard URL."""
+    if not ext_id:
+        return ""
+    try:
+        resp = await client.get(REDIRECT_URL, params={"externalId": ext_id})
+        if resp.status_code == 200:
+            path = resp.text.strip().strip('"')
+            return f"https://hansard.parliament.uk{path}"
+    except Exception:
+        pass
+    return ""
+
+
+def _extract_item(result: dict, keyword: str, resolved_url: str = "") -> dict:
+    """Extract a RawItem dict from a Hansard contribution result."""
+    # Use debate section as title, member name as fallback
+    title = result.get("DebateSection") or result.get("MemberName") or ""
+    member = result.get("AttributedTo") or result.get("MemberName") or ""
+    if member and title:
+        title = f"{title} — {member}"
+
+    date_str = result.get("SittingDate") or ""
     if date_str and "T" in date_str:
         date_str = date_str.split("T")[0]
 
-    url = result.get("Url") or result.get("Link") or ""
-    if url and not url.startswith("http"):
-        url = f"https://hansard.parliament.uk{url}"
+    url = resolved_url or ""
+    house = result.get("House") or ""
+    section = result.get("Section") or ""
+    source_name = f"Hansard, {house}" if house else "Hansard"
+    if section:
+        source_name = f"Hansard, {section}"
 
-    content = result.get("SearchResultText") or result.get("Text") or ""
+    # Use full contribution text if available, fall back to snippet
+    content = result.get("ContributionTextFull") or result.get("ContributionText") or ""
     content = content[:1000]
 
     return {
@@ -45,12 +70,55 @@ def _extract_item(result: dict, keyword: str) -> dict:
         "date": date_str,
         "url": url,
         "content": content,
-        "source_name": "Hansard",
+        "source_name": source_name,
         "keywords_matched": [keyword],
-        "relevance_score": 0.0,  # Set by scorer
-        "verified": True,  # API source, auto-verified
-        "fingerprint": _fingerprint(url, title),
+        "relevance_score": 0.0,
+        "verified": True,
+        "fingerprint": _fingerprint(url or title, title),
     }
+
+
+async def _search_endpoint(
+    client: httpx.AsyncClient,
+    url: str,
+    term: str,
+    start: datetime,
+    end: datetime,
+) -> list[dict]:
+    """Search a single Hansard contributions endpoint."""
+    items = []
+    try:
+        params = {
+            "searchTerm": term,
+            "startDate": start.strftime("%Y-%m-%d"),
+            "endDate": end.strftime("%Y-%m-%d"),
+            "take": 50,
+        }
+        resp = await client.get(url, params=params)
+
+        if resp.status_code in (404, 422, 500, 502, 503):
+            log.debug(f"Hansard {resp.status_code} for '{term}' at {url}")
+            return []
+
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = data.get("Results") or data.get("results") or []
+        if not isinstance(results, list):
+            return []
+
+        for r in results:
+            # Resolve URL from ContributionExtId
+            ext_id = r.get("ContributionExtId", "")
+            resolved_url = await _resolve_url(client, ext_id)
+            items.append(_extract_item(r, term, resolved_url))
+
+    except httpx.HTTPStatusError as e:
+        log.warning(f"Hansard HTTP error for '{term}': {e}")
+    except Exception as e:
+        log.warning(f"Hansard error for '{term}': {e}")
+
+    return items
 
 
 async def collect(
@@ -63,35 +131,14 @@ async def collect(
     items = []
 
     for term in SEARCH_TERMS:
-        try:
-            params = {
-                "searchTerm": term,
-                "startDate": start.strftime("%Y-%m-%d"),
-                "endDate": end.strftime("%Y-%m-%d"),
-            }
-            resp = await client.get(BASE_URL, params=params)
+        # Search both Spoken and Written contributions
+        spoken = await _search_endpoint(client, SPOKEN_URL, term, start, end)
+        items.extend(spoken)
+        await asyncio.sleep(0.3)
 
-            if resp.status_code in (404, 500, 502, 503):
-                log.warning(f"Hansard API {resp.status_code} for '{term}'")
-                await asyncio.sleep(0.5)
-                continue
-
-            resp.raise_for_status()
-            data = resp.json()
-
-            results = data.get("Results") or data.get("results") or []
-            if isinstance(results, list):
-                for r in results:
-                    items.append(_extract_item(r, term))
-
-            log.debug(f"Hansard '{term}': {len(results)} results")
-
-        except httpx.HTTPStatusError as e:
-            log.warning(f"Hansard HTTP error for '{term}': {e}")
-        except Exception as e:
-            log.warning(f"Hansard error for '{term}': {e}")
-
-        await asyncio.sleep(0.5)  # Rate limit
+        written = await _search_endpoint(client, WRITTEN_URL, term, start, end)
+        items.extend(written)
+        await asyncio.sleep(0.3)
 
     log.info(f"Hansard: collected {len(items)} items across {len(SEARCH_TERMS)} terms")
     return items

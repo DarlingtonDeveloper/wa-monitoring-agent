@@ -36,7 +36,9 @@ Produce:
    Derive actions from the analysis. Each: ref (001, 002...), action, owner ("[Name]"), deadline, origin ("Report {reporting_period}"), status ("Open").
 
 5. COVERAGE SUMMARY
-   Array of metrics: total media mentions (client), national media mentions, trade/specialist mentions, social media mentions (client), parliamentary mentions (client + key issues), competitor share of voice (top 3). Each: metric, this_week, previous_week ("[Baseline TBC]"), trend.
+   Array of metrics: total media mentions (client), national media mentions, trade/specialist mentions, social media mentions (client), parliamentary mentions (client + key issues), competitor share of voice (top 3). Each: metric, this_week (string), previous_week ("[Baseline TBC]"), trend.
+   IMPORTANT: Use arrow unicode characters in trend values: \u2191 for increase, \u2193 for decrease, \u2194 for stable. Example: "\u2191 Significant increase" or "\u2194 Stable".
+   IMPORTANT: All values in this_week and previous_week MUST be strings, even if they are numbers. E.g. "12" not 12.
 
 Return ONLY a JSON object with keys: executive_summary, forward_look, emerging_themes, actions_tracker, coverage_summary."""
 

@@ -61,7 +61,7 @@ def _extract_item(result: dict, query: str) -> dict | None:
         "source_name": source_name,
         "keywords_matched": [query],
         "relevance_score": 0.0,
-        "verified": True,  # API source
+        "verified": True,
         "fingerprint": _fingerprint(url, title),
     }
 
@@ -80,12 +80,12 @@ async def collect(
         try:
             params = {
                 **query_params,
-                "count": 10,
-                "order": "most-recent",
+                "count": 20,
+                "order": "-public_timestamp",  # Newest first (NOT "most-recent" which returns 422)
             }
             resp = await client.get(BASE_URL, params=params)
 
-            if resp.status_code in (404, 500, 502, 503):
+            if resp.status_code in (404, 422, 500, 502, 503):
                 log.warning(f"GOV.UK API {resp.status_code} for '{query_params['q']}'")
                 await asyncio.sleep(0.3)
                 continue
@@ -106,7 +106,7 @@ async def collect(
                         if item_date < cutoff:
                             continue
                     except ValueError:
-                        pass  # Keep items with unparseable dates
+                        pass
 
                 items.append(item)
 
@@ -117,7 +117,7 @@ async def collect(
         except Exception as e:
             log.warning(f"GOV.UK error for '{query_params['q']}': {e}")
 
-        await asyncio.sleep(0.3)  # Rate limit
+        await asyncio.sleep(0.3)
 
     log.info(f"GOV.UK: collected {len(items)} items across {len(SEARCH_QUERIES)} queries")
     return items
