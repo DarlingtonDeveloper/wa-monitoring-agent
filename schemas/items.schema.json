@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "items.schema.json",
+  "title": "Scored Items",
+  "description": "Output of collection + scoring stage. Array of scored items cached to disk.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/RawItem"
+  },
+  "$defs": {
+    "RawItem": {
+      "type": "object",
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["hansard", "govuk", "web"]
+        },
+        "title": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO 8601 date, e.g. 2026-03-26"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Verified source URL"
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Snippet or extract, max 1000 chars"
+        },
+        "source_name": {
+          "type": "string",
+          "description": "e.g. Hansard, GOV.UK DESNZ, Recharge News"
+        },
+        "keywords_matched": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "relevance_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether the source URL resolved"
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 12,
+          "description": "Dedup hash, 12 chars"
+        }
+      },
+      "required": [
+        "source_type",
+        "title",
+        "date",
+        "url",
+        "content",
+        "source_name",
+        "keywords_matched",
+        "relevance_score",
+        "verified",
+        "fingerprint"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

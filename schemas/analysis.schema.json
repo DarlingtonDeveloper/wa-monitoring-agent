@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "analysis.schema.json",
+  "title": "Analysis Output",
+  "description": "Output of the analysis stage and input to the DOCX generator. The critical contract between Python and Node.",
+  "type": "object",
+  "properties": {
+    "metadata": { "$ref": "#/$defs/Metadata" },
+    "executive_summary": { "$ref": "#/$defs/ExecutiveSummary" },
+    "sections": { "$ref": "#/$defs/Sections" },
+    "forward_look": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ForwardLookItem" }
+    },
+    "emerging_themes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 2,
+      "maxItems": 4,
+      "description": "2-4 paragraphs on emerging themes"
+    },
+    "actions_tracker": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ActionItem" }
+    },
+    "coverage_summary": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/CoverageSummaryRow" }
+    }
+  },
+  "required": [
+    "metadata",
+    "executive_summary",
+    "sections",
+    "forward_look",
+    "emerging_themes",
+    "actions_tracker",
+    "coverage_summary"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Metadata": {
+      "type": "object",
+      "properties": {
+        "client_name": { "type": "string" },
+        "reporting_period": {
+          "type": "string",
+          "description": "e.g. w/c 24 March 2026"
+        },
+        "report_date": {
+          "type": "string",
+          "description": "e.g. 27 March 2026"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "items_collected": { "type": "integer", "minimum": 0 },
+        "items_scored": { "type": "integer", "minimum": 0 },
+        "items_analysed": { "type": "integer", "minimum": 0 },
+        "sources_unavailable": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": [
+        "client_name",
+        "reporting_period",
+        "report_date",
+        "generated_at",
+        "items_collected",
+        "items_scored",
+        "items_analysed",
+        "sources_unavailable"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutiveSummary": {
+      "type": "object",
+      "properties": {
+        "top_line": {
+          "type": "string",
+          "description": "3-5 sentences"
+        },
+        "key_developments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/KeyDevelopment" }
+        }
+      },
+      "required": ["top_line", "key_developments"],
+      "additionalProperties": false
+    },
+    "KeyDevelopment": {
+      "type": "object",
+      "properties": {
+        "rag": { "$ref": "#/$defs/RAG" },
+        "development": { "type": "string" },
+        "relevance": { "type": "string" },
+        "recommended_action": { "type": "string" },
+        "section_ref": {
+          "type": "string",
+          "description": "e.g. 2.1.1"
+        },
+        "confidence": { "$ref": "#/$defs/Confidence" }
+      },
+      "required": ["rag", "development", "relevance", "recommended_action", "section_ref", "confidence"],
+      "additionalProperties": false
+    },
+    "Sections": {
+      "type": "object",
+      "properties": {
+        "policy_government": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AnalysedItem" }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        },
+        "parliamentary": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AnalysedItem" }
+            },
+            "routine_mentions": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/RoutineMention" }
+            }
+          },
+          "required": ["items", "routine_mentions"],
+          "additionalProperties": false
+        },
+        "regulatory_legal": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AnalysedItem" }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        },
+        "media_coverage": {
+          "type": "object",
+          "properties": {
+            "coverage_table": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/MediaRow" }
+            },
+            "significant_items": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AnalysedItem" }
+            }
+          },
+          "required": ["coverage_table", "significant_items"],
+          "additionalProperties": false
+        },
+        "social_media": {
+          "type": "object",
+          "properties": {
+            "summary": { "type": "string" },
+            "metrics": { "$ref": "#/$defs/SocialMetrics" },
+            "notable_posts": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AnalysedItem" }
+            }
+          },
+          "required": ["summary", "metrics", "notable_posts"],
+          "additionalProperties": false
+        },
+        "competitor_industry": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/CompetitorRow" }
+            }
+          },
+          "required": ["table"],
+          "additionalProperties": false
+        },
+        "stakeholder_third_party": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/AnalysedItem" }
+            },
+            "no_developments": {
+              "type": "boolean",
+              "description": "If true, render 'No significant developments this week'"
+            }
+          },
+          "required": ["items", "no_developments"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "policy_government",
+        "parliamentary",
+        "regulatory_legal",
+        "media_coverage",
+        "social_media",
+        "competitor_industry",
+        "stakeholder_third_party"
+      ],
+      "additionalProperties": false
+    },
+    "AnalysedItem": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "e.g. 2.1.1"
+        },
+        "headline": { "type": "string" },
+        "date": { "type": "string" },
+        "source": { "type": "string" },
+        "summary": {
+          "type": "string",
+          "description": "2-4 sentences"
+        },
+        "client_relevance": {
+          "type": "string",
+          "description": "2-3 sentences"
+        },
+        "recommended_action": { "type": "string" },
+        "escalation": {
+          "type": "string",
+          "enum": ["IMMEDIATE", "HIGH", "STANDARD"]
+        },
+        "rag": { "$ref": "#/$defs/RAG" },
+        "confidence": { "$ref": "#/$defs/Confidence" },
+        "source_items": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Fingerprints of RawItems this was derived from"
+        }
+      },
+      "required": [
+        "ref",
+        "headline",
+        "date",
+        "source",
+        "summary",
+        "client_relevance",
+        "recommended_action",
+        "escalation",
+        "rag",
+        "confidence",
+        "source_items"
+      ],
+      "additionalProperties": false
+    },
+    "RoutineMention": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "type": {
+          "type": "string",
+          "description": "e.g. WQ, OQ, Debate, EDM, Cttee"
+        },
+        "detail": { "type": "string" },
+        "members": { "type": "string" },
+        "significance": {
+          "type": "string",
+          "enum": ["Low", "Medium", "High"]
+        }
+      },
+      "required": ["date", "type", "detail", "members", "significance"],
+      "additionalProperties": false
+    },
+    "MediaRow": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "outlet": { "type": "string" },
+        "angle": {
+          "type": "string",
+          "description": "Own words summary, never verbatim headline"
+        },
+        "client_named": {
+          "type": "string",
+          "description": "e.g. Yes — positive or No — sector story"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["Monitor", "Amplify", "Respond", "Correct"]
+        }
+      },
+      "required": ["date", "outlet", "angle", "client_named", "action"],
+      "additionalProperties": false
+    },
+    "SocialMetrics": {
+      "type": "object",
+      "properties": {
+        "total_mentions": { "type": "string" },
+        "sentiment_breakdown": { "type": "string" },
+        "top_engagement_post": { "type": "string" },
+        "trend_vs_previous": { "type": "string" }
+      },
+      "required": [
+        "total_mentions",
+        "sentiment_breakdown",
+        "top_engagement_post",
+        "trend_vs_previous"
+      ],
+      "additionalProperties": false
+    },
+    "CompetitorRow": {
+      "type": "object",
+      "properties": {
+        "organisation": { "type": "string" },
+        "development": { "type": "string" },
+        "relevance": { "type": "string" },
+        "action": { "type": "string" }
+      },
+      "required": ["organisation", "development", "relevance", "action"],
+      "additionalProperties": false
+    },
+    "ForwardLookItem": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "event": { "type": "string" },
+        "relevance": { "type": "string" },
+        "preparation": { "type": "string" }
+      },
+      "required": ["date", "event", "relevance", "preparation"],
+      "additionalProperties": false
+    },
+    "ActionItem": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "e.g. 001"
+        },
+        "action": { "type": "string" },
+        "owner": {
+          "type": "string",
+          "default": "[Name]"
+        },
+        "deadline": { "type": "string" },
+        "origin": {
+          "type": "string",
+          "description": "e.g. Report w/c 24 March 2026"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Open", "DONE"]
+        }
+      },
+      "required": ["ref", "action", "owner", "deadline", "origin", "status"],
+      "additionalProperties": false
+    },
+    "CoverageSummaryRow": {
+      "type": "object",
+      "properties": {
+        "metric": { "type": "string" },
+        "this_week": { "type": "string" },
+        "previous_week": {
+          "type": "string",
+          "default": "[Baseline TBC]"
+        },
+        "trend": { "type": "string" }
+      },
+      "required": ["metric", "this_week", "previous_week", "trend"],
+      "additionalProperties": false
+    },
+    "RAG": {
+      "type": "string",
+      "enum": ["RED", "AMBER", "GREEN"]
+    },
+    "Confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

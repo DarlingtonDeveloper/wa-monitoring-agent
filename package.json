@@ -1,0 +1,12 @@
+{
+  "name": "wa-monitoring-agent",
+  "version": "1.0.0",
+  "scripts": {
+    "generate": "node src/generate/generate-report.js",
+    "install-deps": "pip install -r requirements.txt && cd src/generate && npm install"
+  },
+  "dependencies": {
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1"
+  }
+}

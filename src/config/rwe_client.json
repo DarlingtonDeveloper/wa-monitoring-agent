@@ -1,0 +1,340 @@
+{
+  "client": {
+    "name": "RWE Renewables",
+    "full_name": "RWE AG",
+    "sector": "Energy / Offshore Wind",
+    "country": "United Kingdom"
+  },
+
+  "projects": [
+    {
+      "name": "Sofia Offshore Wind Farm",
+      "capacity_mw": 1400,
+      "location": "Dogger Bank, North Sea",
+      "status": "Under construction",
+      "partners": ["RWE (100%)"],
+      "key_dates": ["First power expected 2026", "Full commissioning 2027"],
+      "priority": "HIGH PROFILE"
+    },
+    {
+      "name": "Norfolk Vanguard East",
+      "capacity_mw": 1800,
+      "location": "North Sea, off Norfolk coast",
+      "status": "DCO granted, pre-construction",
+      "partners": ["RWE (100%)"],
+      "key_dates": ["DCO granted 2025", "Construction start TBC"],
+      "priority": "MOST STRATEGICALLY IMPORTANT"
+    },
+    {
+      "name": "Norfolk Vanguard West",
+      "capacity_mw": 1800,
+      "location": "North Sea, off Norfolk coast",
+      "status": "DCO granted, pre-construction",
+      "partners": ["RWE (100%)"],
+      "key_dates": ["DCO granted 2025", "Construction start TBC"],
+      "priority": "MOST STRATEGICALLY IMPORTANT"
+    },
+    {
+      "name": "Dogger Bank South East",
+      "capacity_mw": 1200,
+      "location": "Dogger Bank, North Sea",
+      "status": "In development",
+      "partners": ["RWE", "Joint venture TBC"],
+      "key_dates": ["Lease awarded", "DCO application expected 2026"],
+      "priority": "HIGH PROFILE"
+    },
+    {
+      "name": "Dogger Bank South West",
+      "capacity_mw": 1200,
+      "location": "Dogger Bank, North Sea",
+      "status": "In development",
+      "partners": ["RWE", "Joint venture TBC"],
+      "key_dates": ["Lease awarded", "DCO application expected 2026"],
+      "priority": "HIGH PROFILE"
+    },
+    {
+      "name": "Awel y Môr",
+      "capacity_mw": 576,
+      "location": "Irish Sea, off North Wales coast",
+      "status": "Under construction",
+      "partners": ["RWE (100%)"],
+      "key_dates": ["Construction commenced 2024", "Expected operational 2027"],
+      "priority": "HIGH PROFILE"
+    },
+    {
+      "name": "Onshore Wind Portfolio",
+      "capacity_mw": null,
+      "location": "Various UK sites",
+      "status": "Operational / Development pipeline",
+      "partners": ["RWE"],
+      "key_dates": [],
+      "priority": "STANDARD"
+    },
+    {
+      "name": "Solar Portfolio",
+      "capacity_mw": null,
+      "location": "Various UK sites",
+      "status": "Development pipeline",
+      "partners": ["RWE"],
+      "key_dates": [],
+      "priority": "STANDARD"
+    },
+    {
+      "name": "Gas & CCUS",
+      "capacity_mw": null,
+      "location": "Various UK sites",
+      "status": "Operational (gas), Exploration (CCUS)",
+      "partners": ["RWE"],
+      "key_dates": [],
+      "priority": "MONITOR"
+    }
+  ],
+
+  "keywords": {
+    "rwe_corporate": [
+      "RWE", "RWE Renewables", "RWE AG", "RWE Group", "RWE UK",
+      "RWE offshore", "RWE onshore", "RWE solar", "RWE hydrogen",
+      "Sofia wind farm", "Sofia offshore", "Norfolk Vanguard",
+      "Norfolk Vanguard East", "Norfolk Vanguard West",
+      "Dogger Bank South", "Awel y Mor", "Awel y Môr",
+      "RWE Generation", "RWE Supply & Trading",
+      "Tom Glover RWE", "Sven Utermohlen", "Markus Krebber",
+      "RWE CCUS", "RWE carbon capture", "RWE battery storage",
+      "RWE Triton Knoll", "Triton Knoll", "RWE Rampion", "Rampion Extension",
+      "RWE Little Cheyne Court", "RWE Rhyl Flats", "RWE Gwynt y Mor"
+    ],
+    "uk_energy_policy": [
+      "Clean Power 2030", "clean energy", "clean power alliance",
+      "GB Energy", "Great British Energy", "Great British Nuclear",
+      "National Energy System Operator", "NESO", "Future System Operator",
+      "energy security", "Energy Act", "net zero", "Net Zero Strategy",
+      "carbon budget", "Climate Change Committee", "CCC report",
+      "DESNZ", "Department for Energy", "Ed Miliband", "energy secretary",
+      "Michael Shanks", "energy minister", "Sarah Jones energy",
+      "Contracts for Difference", "CfD", "CfD allocation round",
+      "AR6", "AR7", "allocation round",
+      "Electricity Market Reform", "REMA", "Review of Electricity Market Arrangements",
+      "capacity market", "capacity auction",
+      "industrial strategy", "green prosperity plan",
+      "grid connections", "grid queue", "transmission network",
+      "Strategic Spatial Energy Plan", "SSEP",
+      "community benefit", "community energy",
+      "planning reform", "NSIP", "nationally significant infrastructure",
+      "Crown Estate", "seabed leasing", "Celtic Sea",
+      "floating wind", "ScotWind", "INTOG",
+      "hydrogen strategy", "hydrogen production",
+      "carbon capture", "CCUS", "Track-1", "Track-2",
+      "power purchase agreement", "PPA", "corporate PPA",
+      "interconnector", "energy storage", "battery storage",
+      "electricity prices", "wholesale energy", "energy bills",
+      "fuel poverty", "energy price cap",
+      "just transition", "green jobs", "supply chain",
+      "energy independence", "energy sovereignty",
+      "decarbonisation", "power sector decarbonisation"
+    ],
+    "offshore_wind": [
+      "offshore wind", "offshore wind farm",
+      "wind turbine", "turbine installation",
+      "offshore wind capacity", "offshore wind target",
+      "50GW", "60GW",
+      "seabed lease", "Crown Estate leasing round",
+      "offshore wind consenting", "marine licence",
+      "subsea cable", "export cable", "cable route",
+      "onshore substation", "grid connection offshore",
+      "offshore wind supply chain", "blade manufacturing",
+      "jacket foundation", "monopile", "floating foundation",
+      "port infrastructure", "offshore wind port",
+      "Humber", "Teesside", "Freeport",
+      "installation vessel", "WTIV",
+      "operations and maintenance", "O&M base",
+      "decommissioning offshore",
+      "environmental impact", "ornithology",
+      "marine protected area", "Habitats Regulations",
+      "cumulative impact", "radar", "aviation",
+      "fishing industry", "coexistence",
+      "offshore wind developer", "offshore wind operator",
+      "LCCC", "Low Carbon Contracts Company",
+      "strike price", "reference price",
+      "wind farm planning", "DCO offshore",
+      "Section 36 consent", "marine planning"
+    ],
+    "competitors": [
+      "Orsted", "Ørsted", "SSE Renewables", "SSE plc",
+      "Equinor", "Vattenfall", "Iberdrola", "ScottishPower Renewables",
+      "EDF Renewables", "Octopus Energy Generation",
+      "TotalEnergies renewables", "bp wind", "bp lightsource",
+      "Shell renewables", "Shell New Energies",
+      "EnBW", "Northland Power", "Ocean Winds", "Corio Generation",
+      "Green Investment Group", "Macquarie Green",
+      "Hornsea", "Hornsea 3", "Hornsea 4",
+      "East Anglia", "East Anglia ONE", "East Anglia TWO", "East Anglia THREE",
+      "Berwick Bank", "Inch Cape", "Neart na Gaoithe", "Seagreen",
+      "Moray West", "Erebus", "Llŷr",
+      "Dogger Bank A", "Dogger Bank B", "Dogger Bank C",
+      "Rampion 2", "Thanet Extension",
+      "Five Estuaries", "North Falls"
+    ],
+    "parliamentary": [
+      "parliamentary question", "PQ wind", "PQ offshore",
+      "written question energy", "oral question energy",
+      "Energy Security and Net Zero Committee",
+      "ESNZ Committee", "BEIS Committee",
+      "Environmental Audit Committee",
+      "House of Lords debate energy", "Westminster Hall debate energy",
+      "Early Day Motion energy", "EDM renewable",
+      "All-Party Parliamentary Group", "APPG wind",
+      "APPG renewable", "APPG energy",
+      "select committee energy", "Lords Science Technology",
+      "Public Accounts Committee energy",
+      "levelling up energy", "planning committee wind",
+      "MP wind farm", "MP offshore wind",
+      "constituency wind", "constituency energy",
+      "Hansard energy", "Hansard wind", "Hansard offshore",
+      "division energy", "vote energy bill",
+      "private members bill energy", "ten minute rule energy",
+      "statutory instrument energy", "SI energy"
+    ],
+    "social_reputational": [
+      "RWE protest", "RWE campaign", "anti-wind",
+      "wind farm opposition", "wind farm protest",
+      "NIMBY wind", "visual impact wind",
+      "noise wind turbine", "wildlife wind farm",
+      "bird strike wind", "bird mortality turbine",
+      "whale wind farm", "marine mammal wind",
+      "fishing wind farm", "fishermen offshore",
+      "tourism wind farm", "property values wind",
+      "community opposition wind", "local opposition wind",
+      "Extinction Rebellion energy", "Just Stop Oil",
+      "Greenpeace offshore wind", "Friends of the Earth wind",
+      "RSPB wind farm", "Wildlife Trusts wind",
+      "public consultation wind", "judicial review wind",
+      "planning appeal wind", "environmental statement wind",
+      "social media wind farm", "viral wind", "trending wind",
+      "misinformation wind", "disinformation energy"
+    ],
+    "financial_investment": [
+      "RWE share price", "RWE investor", "RWE annual report",
+      "RWE capital expenditure", "RWE earnings",
+      "offshore wind investment", "renewable energy investment",
+      "green bond", "green gilt", "sustainable finance",
+      "infrastructure fund renewable", "pension fund offshore wind",
+      "project finance wind", "wind farm financing",
+      "M&A renewable", "acquisition wind farm",
+      "joint venture offshore", "farm-down",
+      "subsidy wind", "subsidy renewable",
+      "windfall tax energy", "electricity generator levy",
+      "revenue cap", "revenue certainty",
+      "cost of capital renewable", "WACC offshore wind",
+      "levelised cost", "LCOE wind",
+      "supply chain cost", "inflation energy project",
+      "steel price wind", "commodity price energy",
+      "insurance offshore wind", "force majeure",
+      "curtailment", "constraint payments",
+      "balancing mechanism", "ancillary services"
+    ]
+  },
+
+  "false_positive_rules": [
+    {
+      "pattern": "RWE",
+      "exclude_context": ["RWE Shropshire", "wrestling", "RWE Smith"],
+      "note": "RWE is a common abbreviation — require energy/power/wind context"
+    },
+    {
+      "pattern": "Sofia",
+      "exclude_context": ["Sofia Bulgaria", "Queen Sofia", "Sofia Vergara", "Sofia airport"],
+      "note": "Sofia is a common name — require wind/offshore/energy context"
+    },
+    {
+      "pattern": "CfD",
+      "exclude_context": ["contract for deed", "computational fluid dynamics"],
+      "note": "CfD can mean Contract for Deed or Computational Fluid Dynamics"
+    },
+    {
+      "pattern": "NESO",
+      "exclude_context": ["NESCO", "Neso moon"],
+      "note": "Filter non-energy NESO references"
+    }
+  ],
+
+  "monitoring_themes": [
+    {"id": "policy_government", "label": "Policy & Government Activity", "section": "2.1"},
+    {"id": "parliamentary", "label": "Parliamentary Activity", "section": "2.2"},
+    {"id": "regulatory_legal", "label": "Regulatory & Legal", "section": "2.3"},
+    {"id": "media_coverage", "label": "Media Coverage", "section": "2.4"},
+    {"id": "social_media", "label": "Social Media & Digital", "section": "2.5"},
+    {"id": "competitor_industry", "label": "Competitor & Industry Intelligence", "section": "2.6"},
+    {"id": "stakeholder_third_party", "label": "Stakeholder & Third Party Activity", "section": "2.7"}
+  ],
+
+  "escalation": {
+    "IMMEDIATE": [
+      "Any direct mention of RWE in Parliament (questions, debates, motions)",
+      "Government announcements directly affecting RWE projects",
+      "National media articles naming RWE",
+      "Coordinated activism or protest targeting RWE",
+      "Major regulatory decisions affecting RWE projects (consenting, CfD)",
+      "Safety incidents on RWE sites"
+    ],
+    "HIGH": [
+      "Policy changes affecting offshore wind sector broadly",
+      "CfD allocation round announcements or rule changes",
+      "Competitor developments with strategic implications",
+      "Regional media coverage of RWE project areas",
+      "Select committee inquiries touching energy/wind",
+      "Major supply chain disruptions",
+      "Grid connection queue changes"
+    ],
+    "STANDARD": [
+      "Routine parliamentary mentions of offshore wind",
+      "General energy policy commentary",
+      "Industry body publications and reports",
+      "Trade press coverage of sector trends",
+      "Minor competitor updates",
+      "Stakeholder publications without direct RWE relevance"
+    ]
+  },
+
+  "sources": {
+    "programmatic": [
+      {"name": "Hansard", "type": "api", "base_url": "https://hansard-api.parliament.uk"},
+      {"name": "GOV.UK", "type": "api", "base_url": "https://www.gov.uk/api/search.json"}
+    ],
+    "web_search": [
+      {"name": "Ofgem", "url": "https://www.ofgem.gov.uk"},
+      {"name": "NESO", "url": "https://www.neso.energy"},
+      {"name": "Crown Estate", "url": "https://www.thecrownestate.co.uk"},
+      {"name": "Great British Energy", "url": "https://www.gbe.gov.uk"},
+      {"name": "Planning Inspectorate", "url": "https://www.gov.uk/government/organisations/planning-inspectorate"},
+      {"name": "LCCC", "url": "https://www.lowcarboncontracts.uk"},
+      {"name": "RenewableUK", "url": "https://www.renewableuk.com"},
+      {"name": "Energy UK", "url": "https://www.energy-uk.org.uk"},
+      {"name": "ORE Catapult", "url": "https://ore.catapult.org.uk"},
+      {"name": "Climate Change Committee", "url": "https://www.theccc.org.uk"}
+    ],
+    "media_specialist": [
+      "Recharge News", "Windpower Monthly", "Utility Week", "Current±", "New Power"
+    ],
+    "media_national": [
+      "Financial Times", "The Times", "Bloomberg", "Reuters",
+      "The Guardian", "The Telegraph", "BBC News"
+    ],
+    "media_regional": [
+      "Eastern Daily Press", "Grimsby Telegraph", "Northern Echo", "Daily Post"
+    ],
+    "media_political": [
+      "Politico London Playbook", "PoliticsHome"
+    ],
+    "industry": [
+      "RenewableUK", "Energy UK", "OEUK", "ORE Catapult", "Climate Change Committee"
+    ]
+  },
+
+  "report": {
+    "consultancy_name": "WA Communications",
+    "consultancy_subtitle": "Public Affairs & Strategic Communications",
+    "classification": "CONFIDENTIAL",
+    "prepared_by_default": "AI Monitoring Agent (Draft)",
+    "reviewed_by_default": "[Account Lead]"
+  }
+}
