@@ -103,13 +103,12 @@ EXTRACT_FACTS_TOOL = {
                     "type": "object",
                     "properties": {
                         "fingerprint": {"type": "string"},
-                        "who": {"type": ["string", "null"]},
-                        "what": {"type": ["string", "null"]},
-                        "when": {"type": ["string", "null"]},
-                        "numbers": {"type": ["string", "null"]},
+                        "who": {"type": "string"},
+                        "what": {"type": "string"},
+                        "when": {"type": "string"},
+                        "numbers": {"type": "string"},
                         "type": {"type": "string"},
                     },
-                    "required": ["fingerprint"],
                 },
             },
         },
@@ -309,7 +308,9 @@ def _extract_facts(
             messages=[{"role": "user", "content": prompt}],
         )
         result = _get_tool_input(response, "extract_facts")
-        return result.get("facts", [])
+        facts = result.get("facts", [])
+        log.info(f"Extracted {len(facts)} facts from {len(items)} items")
+        return facts
     except Exception as e:
         log.warning(f"Fact extraction failed: {e}")
         return []

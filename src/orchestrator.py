@@ -168,7 +168,7 @@ def run_pipeline(args):
 
     result = subprocess.run(
         [
-            "node", "src/generate/generate-report.js",
+            "node", str(Path(__file__).resolve().parent / "generate" / "generate-report.js"),
             "--analysis", str(analysis_path),
             "--config", config_path,
             "--output", str(report_path),
