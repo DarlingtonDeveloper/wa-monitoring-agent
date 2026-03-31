@@ -23,14 +23,21 @@ RETRIABLE_EXCEPTIONS = (
 
 
 def retry_api_call(fn, *args, max_retries=3, backoff_base=1.0, **kwargs):
-    """Retry a synchronous API call with exponential backoff."""
+    """Retry a synchronous API call with exponential backoff.
+
+    Uses longer backoff (15s base) for rate limit errors to respect API quotas.
+    """
     for attempt in range(max_retries + 1):
         try:
             return fn(*args, **kwargs)
         except RETRIABLE_EXCEPTIONS as e:
             if attempt >= max_retries:
                 raise
-            wait = backoff_base * (2 ** attempt)
+            # Use longer backoff for rate limits
+            if isinstance(e, anthropic.RateLimitError):
+                wait = 15 * (attempt + 1)
+            else:
+                wait = backoff_base * (2 ** attempt)
             log.warning(
                 f"Retry {attempt + 1}/{max_retries} after {wait:.1f}s: "
                 f"{type(e).__name__}: {e}"
@@ -39,14 +46,20 @@ def retry_api_call(fn, *args, max_retries=3, backoff_base=1.0, **kwargs):
 
 
 async def retry_async_call(fn, *args, max_retries=3, backoff_base=1.0, **kwargs):
-    """Retry an async call with exponential backoff."""
+    """Retry an async call with exponential backoff.
+
+    Uses longer backoff (15s base) for rate limit errors to respect API quotas.
+    """
     for attempt in range(max_retries + 1):
         try:
             return await fn(*args, **kwargs)
         except RETRIABLE_EXCEPTIONS as e:
             if attempt >= max_retries:
                 raise
-            wait = backoff_base * (2 ** attempt)
+            if isinstance(e, anthropic.RateLimitError):
+                wait = 15 * (attempt + 1)
+            else:
+                wait = backoff_base * (2 ** attempt)
             log.warning(
                 f"Retry {attempt + 1}/{max_retries} after {wait:.1f}s: "
                 f"{type(e).__name__}: {e}"

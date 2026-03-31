@@ -1,7 +1,8 @@
 {
   "client": {
-    "name": "RWE Renewables",
+    "name": "RWE",
     "full_name": "RWE AG",
+    "report_display_name": "RWE Renewables",
     "sector": "Energy / Offshore Wind",
     "country": "United Kingdom"
   },
@@ -97,11 +98,17 @@
       "Sofia wind farm", "Sofia offshore", "Norfolk Vanguard",
       "Norfolk Vanguard East", "Norfolk Vanguard West",
       "Dogger Bank South", "Awel y Mor", "Awel y Môr",
-      "RWE Generation", "RWE Supply & Trading",
-      "Tom Glover RWE", "Sven Utermohlen", "Markus Krebber",
+      "RWE Generation", "RWE Generation UK", "RWE Supply & Trading",
+      "Tom Glover RWE", "Tom Glover", "Sven Utermohlen", "Markus Krebber",
       "RWE CCUS", "RWE carbon capture", "RWE battery storage",
       "RWE Triton Knoll", "Triton Knoll", "RWE Rampion", "Rampion Extension",
-      "RWE Little Cheyne Court", "RWE Rhyl Flats", "RWE Gwynt y Mor"
+      "RWE Little Cheyne Court", "RWE Rhyl Flats", "RWE Gwynt y Mor",
+      "Pembroke Power Station", "Staythorpe",
+      "Little Barford", "Didcot", "Great Yarmouth",
+      "Greater Gabbard", "Galloper", "Rampion",
+      "Rhyl Flats", "Gwynt y Mor", "North Hoyle", "Sheringham Shoal",
+      "Enoch Hill 2", "Clachaig Glen", "Golticlaghy",
+      "Raspberry", "Belvoir", "Honeyhall", "Quarry", "Langford"
     ],
     "uk_energy_policy": [
       "Clean Power 2030", "clean energy", "clean power alliance",
@@ -114,7 +121,7 @@
       "Contracts for Difference", "CfD", "CfD allocation round",
       "AR6", "AR7", "allocation round",
       "Electricity Market Reform", "REMA", "Review of Electricity Market Arrangements",
-      "capacity market", "capacity auction",
+      "capacity market", "capacity auction", "de-rating",
       "industrial strategy", "green prosperity plan",
       "grid connections", "grid queue", "transmission network",
       "Strategic Spatial Energy Plan", "SSEP",
@@ -123,14 +130,19 @@
       "Crown Estate", "seabed leasing", "Celtic Sea",
       "floating wind", "ScotWind", "INTOG",
       "hydrogen strategy", "hydrogen production",
-      "carbon capture", "CCUS", "Track-1", "Track-2",
+      "hydrogen to power", "East Coast Cluster", "Track-1", "Track-2",
+      "carbon capture", "CCUS",
       "power purchase agreement", "PPA", "corporate PPA",
       "interconnector", "energy storage", "battery storage",
       "electricity prices", "wholesale energy", "energy bills",
       "fuel poverty", "energy price cap",
       "just transition", "green jobs", "supply chain",
       "energy independence", "energy sovereignty",
-      "decarbonisation", "power sector decarbonisation"
+      "decarbonisation", "power sector decarbonisation",
+      "energy resilience", "North Hyde",
+      "DCO", "Development Consent Order",
+      "Planning Inspectorate", "national policy statement",
+      "EN-1", "EN-3", "EN-5", "Onshore Wind Taskforce"
     ],
     "offshore_wind": [
       "offshore wind", "offshore wind farm",
@@ -156,7 +168,14 @@
       "LCCC", "Low Carbon Contracts Company",
       "strike price", "reference price",
       "wind farm planning", "DCO offshore",
-      "Section 36 consent", "marine planning"
+      "Section 36 consent", "marine planning",
+      "Siemens Gamesa", "Vestas", "GE Vernova",
+      "blade manufacture", "foundation manufacture", "cable manufacture",
+      "Able Marine Energy Park",
+      "curtailment", "constraint costs", "balancing costs",
+      "marine ecology", "seabird",
+      "biodiversity net gain",
+      "green jobs", "energy skills"
     ],
     "competitors": [
       "Orsted", "Ørsted", "SSE Renewables", "SSE plc",
@@ -166,13 +185,18 @@
       "Shell renewables", "Shell New Energies",
       "EnBW", "Northland Power", "Ocean Winds", "Corio Generation",
       "Green Investment Group", "Macquarie Green",
+      "Blue Gem Wind",
       "Hornsea", "Hornsea 3", "Hornsea 4",
       "East Anglia", "East Anglia ONE", "East Anglia TWO", "East Anglia THREE",
       "Berwick Bank", "Inch Cape", "Neart na Gaoithe", "Seagreen",
       "Moray West", "Erebus", "Llŷr",
       "Dogger Bank A", "Dogger Bank B", "Dogger Bank C",
       "Rampion 2", "Thanet Extension",
-      "Five Estuaries", "North Falls"
+      "Five Estuaries", "North Falls",
+      "CBI", "Aldersgate Group", "Green Alliance",
+      "Carbon Tracker", "Ember", "Aurora Energy Research",
+      "Cornwall Insight", "UKERC", "Policy Exchange",
+      "ORE Catapult", "REA", "Renewable Energy Association", "WindEurope"
     ],
     "parliamentary": [
       "parliamentary question", "PQ wind", "PQ offshore",
@@ -192,7 +216,14 @@
       "Hansard energy", "Hansard wind", "Hansard offshore",
       "division energy", "vote energy bill",
       "private members bill energy", "ten minute rule energy",
-      "statutory instrument energy", "SI energy"
+      "statutory instrument energy", "SI energy",
+      "Ed Miliband", "Michael Shanks", "Sarah Jones",
+      "HM Treasury", "Cabinet Office",
+      "Written Question", "Oral Question",
+      "Westminster Hall", "statutory instrument",
+      "Scottish Government", "Welsh Government", "Senedd",
+      "East Riding", "North Norfolk", "Great Yarmouth",
+      "Redcar", "North East Lincolnshire", "Conwy", "Denbighshire"
     ],
     "social_reputational": [
       "RWE protest", "RWE campaign", "anti-wind",
@@ -210,7 +241,14 @@
       "public consultation wind", "judicial review wind",
       "planning appeal wind", "environmental statement wind",
       "social media wind farm", "viral wind", "trending wind",
-      "misinformation wind", "disinformation energy"
+      "misinformation wind", "disinformation energy",
+      "protest", "campaign", "opposition", "climate activist",
+      "Greenpeace", "Friends of the Earth",
+      "Extinction Rebellion",
+      "local community", "residents", "visual impact",
+      "noise", "fishing", "property values", "community benefit",
+      "greenwash", "greenwashing", "fossil fuel", "coal",
+      "lignite", "Lützerath", "Hambach"
     ],
     "financial_investment": [
       "RWE share price", "RWE investor", "RWE annual report",
@@ -230,7 +268,21 @@
       "steel price wind", "commodity price energy",
       "insurance offshore wind", "force majeure",
       "curtailment", "constraint payments",
-      "balancing mechanism", "ancillary services"
+      "balancing mechanism", "ancillary services",
+      "final investment decision", "FID", "project finance",
+      "equity stake", "acquisition", "divestment",
+      "wholesale electricity price", "power price",
+      "energy bills",
+      "green levy", "renewable obligation",
+      "steel price", "turbine cost", "cable cost", "vessel availability"
+    ],
+    "gas_flexibility": [
+      "gas-fired power", "CCGT", "combined cycle",
+      "thermal generation", "dispatchable power",
+      "battery storage", "BESS", "battery energy storage",
+      "flexibility", "flexible generation",
+      "capacity market", "capacity auction", "de-rating",
+      "gas security", "gas supply"
     ]
   },
 

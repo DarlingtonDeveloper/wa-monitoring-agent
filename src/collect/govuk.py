@@ -1,32 +1,47 @@
-"""GOV.UK API collector."""
+"""GOV.UK Atom feed collector — replaces search API.
+
+GOV.UK's search API returns the same generic pages for every query.
+Atom feeds list every new publication chronologically per department/topic.
+No relevance ranking to fight, no duplicates, deterministic.
+"""
 
 import asyncio
 import hashlib
 import logging
 from datetime import datetime, timedelta
 
+import feedparser
 import httpx
-
-from utils.retry import retry_async_call
 
 log = logging.getLogger(__name__)
 
-BASE_URL = "https://www.gov.uk/api/search.json"
+# GOV.UK Atom feeds — one per department/topic relevant to client
+GOVUK_FEEDS = [
+    # DESNZ — all publications
+    "https://www.gov.uk/government/organisations/department-for-energy-security-and-net-zero.atom",
 
-SEARCH_QUERIES = [
-    {"q": "offshore wind CfD", "filter_organisations[]": "department-for-energy-security-and-net-zero"},
-    {"q": "DESNZ energy announcement", "filter_organisations[]": "department-for-energy-security-and-net-zero"},
-    {"q": "Ofgem consultation decision"},
-    {"q": "Great British Energy"},
-    {"q": "REMA electricity market", "filter_organisations[]": "department-for-energy-security-and-net-zero"},
-    {"q": "grid connections reform"},
-    {"q": "energy resilience strategy", "filter_organisations[]": "department-for-energy-security-and-net-zero"},
-    {"q": "Crown Estate seabed"},
-    {"q": "NESO strategic spatial"},
-    {"q": "CCUS carbon capture", "filter_organisations[]": "department-for-energy-security-and-net-zero"},
-    {"q": "planning inspectorate energy"},
-    {"q": "onshore wind planning"},
-    {"q": "clean power 2030"},
+    # Ofgem
+    "https://www.gov.uk/government/organisations/ofgem.atom",
+
+    # Planning Inspectorate
+    "https://www.gov.uk/government/organisations/planning-inspectorate.atom",
+
+    # CMA
+    "https://www.gov.uk/government/organisations/competition-and-markets-authority.atom",
+
+    # DESNZ topic feeds (more specific)
+    "https://www.gov.uk/search/policy-papers-and-consultations.atom?organisations%5B%5D=department-for-energy-security-and-net-zero",
+    "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=department-for-energy-security-and-net-zero",
+
+    # Cross-department energy topics
+    "https://www.gov.uk/search/policy-papers-and-consultations.atom?topics%5B%5D=energy",
+    "https://www.gov.uk/search/news-and-communications.atom?topics%5B%5D=energy",
+
+    # Planning (DLUHC)
+    "https://www.gov.uk/search/policy-papers-and-consultations.atom?organisations%5B%5D=department-for-levelling-up-housing-and-communities&topics%5B%5D=planning-and-building",
+
+    # Treasury — energy/climate relevant
+    "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=hm-treasury&topics%5B%5D=energy",
 ]
 
 
@@ -35,91 +50,72 @@ def _fingerprint(url: str, title: str) -> str:
     return hashlib.sha256(raw).hexdigest()[:12]
 
 
-def _extract_item(result: dict, query: str) -> dict | None:
-    """Extract a RawItem dict from a GOV.UK API result."""
-    title = result.get("title", "")
-    link = result.get("link", "")
-    url = f"https://www.gov.uk{link}" if link else ""
-    description = (result.get("description") or "")[:1000]
-
-    date_str = result.get("public_timestamp", "")
-    if date_str and "T" in date_str:
-        date_str = date_str.split("T")[0]
-
-    # Build source name from organisations
-    orgs = result.get("organisations", [])
-    if orgs and isinstance(orgs, list):
-        org_names = [o.get("title", "") if isinstance(o, dict) else str(o) for o in orgs]
-        source_name = f"GOV.UK {', '.join(n for n in org_names if n)}" if any(org_names) else "GOV.UK"
-    else:
-        source_name = "GOV.UK"
-
-    return {
-        "source_type": "govuk",
-        "title": title,
-        "date": date_str,
-        "url": url,
-        "content": description,
-        "source_name": source_name,
-        "keywords_matched": [query],
-        "relevance_score": 0.0,
-        "verified": True,
-        "fingerprint": _fingerprint(url, title),
-    }
-
-
 async def collect(
     client: httpx.AsyncClient,
     config: dict,
     start: datetime,
     end: datetime,
 ) -> list[dict]:
-    """Collect items from GOV.UK API, filtered to last 14 days."""
+    """
+    Fetch GOV.UK Atom feeds. Each feed returns recent publications
+    in chronological order — no search relevance ranking, no duplicates.
+    """
     items = []
-    cutoff = datetime.now() - timedelta(days=14)
+    seen_urls = set()
 
-    for query_params in SEARCH_QUERIES:
+    for feed_url in GOVUK_FEEDS:
         try:
-            params = {
-                **query_params,
-                "count": 20,
-                "order": "-public_timestamp",  # Newest first (NOT "most-recent" which returns 422)
-            }
-            resp = await retry_async_call(client.get, BASE_URL, params=params)
-
-            if resp.status_code in (404, 422, 500, 502, 503):
-                log.warning(f"GOV.UK API {resp.status_code} for '{query_params['q']}'")
-                await asyncio.sleep(0.3)
+            resp = await client.get(feed_url, timeout=15)
+            if resp.status_code != 200:
+                log.warning(f"GOV.UK feed {feed_url}: HTTP {resp.status_code}")
                 continue
 
-            resp.raise_for_status()
-            data = resp.json()
+            feed = feedparser.parse(resp.text)
+            log.info(f"GOV.UK feed: {len(feed.entries)} entries from {feed_url[:80]}")
 
-            results = data.get("results", [])
-            for r in results:
-                item = _extract_item(r, query_params["q"])
-                if not item:
+            for entry in feed.entries:
+                url = entry.get("link", "").rstrip("/")
+                if not url or url in seen_urls:
                     continue
+                seen_urls.add(url)
 
-                # Date filter: keep items from last 14 days
-                if item["date"]:
+                # Parse date
+                published = entry.get("published", entry.get("updated", ""))
+                date_str = ""
+                if published:
                     try:
-                        item_date = datetime.strptime(item["date"], "%Y-%m-%d")
-                        if item_date < cutoff:
+                        entry_date = datetime.fromisoformat(
+                            published.replace("Z", "+00:00")
+                        )
+                        # Date filter: keep items within start-1 to end+1
+                        if entry_date.date() < (start - timedelta(days=1)).date():
                             continue
-                    except ValueError:
-                        pass
+                        if entry_date.date() > (end + timedelta(days=1)).date():
+                            continue
+                        date_str = str(entry_date.date())
+                    except (ValueError, TypeError):
+                        pass  # no date = keep, let scorer handle it
 
-                items.append(item)
+                title = entry.get("title", "")
+                summary = entry.get("summary", "")
 
-            log.debug(f"GOV.UK '{query_params['q']}': {len(results)} results")
+                items.append({
+                    "source_type": "govuk",
+                    "title": title,
+                    "date": date_str,
+                    "url": url,
+                    "content": f"{title}. {summary}"[:2000],
+                    "source_name": "GOV.UK",
+                    "keywords_matched": [],
+                    "relevance_score": 0.0,
+                    "verified": True,
+                    "fingerprint": _fingerprint(url, title),
+                })
 
-        except httpx.HTTPStatusError as e:
-            log.warning(f"GOV.UK HTTP error for '{query_params['q']}': {e}")
         except Exception as e:
-            log.warning(f"GOV.UK error for '{query_params['q']}': {e}")
+            log.warning(f"GOV.UK feed failed {feed_url[:60]}: {e}")
 
         await asyncio.sleep(0.3)
 
-    log.info(f"GOV.UK: collected {len(items)} items across {len(SEARCH_QUERIES)} queries")
+    log.info(f"GOV.UK total: {len(items)} unique items from {len(GOVUK_FEEDS)} feeds")
     return items

@@ -8,11 +8,11 @@ Separating extraction from interpretation improves both accuracy and traceabilit
 
 import json
 import logging
+from datetime import datetime, timedelta
 
 import anthropic
 from opik import track
 
-from score.keyword_scorer import flatten_keywords
 from utils.retry import retry_api_call
 
 log = logging.getLogger(__name__)
@@ -21,49 +21,39 @@ log = logging.getLogger(__name__)
 MODEL_EXTRACTION = "claude-haiku-4-5-20251001"
 MODEL_ANALYSIS = "claude-sonnet-4-20250514"
 
-# ── Theme routing ──
-THEME_ROUTING = {
-    "policy_government": {
-        "source_types": ["govuk"],
-        "keywords": ["desnz", "clean power", "cfd", "ar7", "ar8", "energy security",
-                      "consultation", "policy", "minister", "announcement"],
-    },
-    "parliamentary": {
-        "source_types": ["hansard"],
-        "keywords": ["hansard", "debate", "committee", "question", "edm", "appg",
-                      "parliament", "commons", "lords", "written question",
-                      "early day motion"],
-    },
-    "regulatory_legal": {
-        "keywords": ["ofgem", "neso", "crown estate", "planning", "dco", "nsip",
-                      "riio", "tnuos", "grid connection", "seabed lease"],
-    },
-    "media_coverage": {
-        "keywords": [],
-    },
-    "social_media": {
-        "keywords": ["social media", "twitter", "linkedin", "viral", "trending",
-                      "protest", "campaign"],
-    },
-    "competitor_industry": {
-        "keywords": [],
-    },
-    "stakeholder_third_party": {
-        "keywords": ["ngo", "campaign", "protest", "community", "union",
-                      "academic", "petition", "foi", "activist"],
-    },
+# ── Single-theme routing by source type (Fix 3: source type first, content override) ──
+
+# Known media outlets — items from these route to media
+MEDIA_OUTLETS = {
+    "recharge", "recharge news", "windpower monthly", "new power",
+    "utility week", "current±", "the energyst", "energy voice",
+    "financial times", "the times", "bloomberg", "reuters",
+    "the guardian", "the telegraph", "bbc", "sky news",
+    "politico", "politicshome",
+    "eastern daily press", "grimsby telegraph", "northern echo",
+    "daily post", "press and journal",
 }
 
-# Priority order for cross-theme dedup (most specific first)
-THEME_PRIORITY = [
-    "parliamentary",
-    "policy_government",
-    "regulatory_legal",
-    "stakeholder_third_party",
-    "competitor_industry",
-    "social_media",
-    "media_coverage",
-]
+# Known industry bodies — items from these route to competitor
+INDUSTRY_BODIES = {
+    "renewableuk", "energy uk", "oeuk", "ore catapult",
+    "rea", "windeurope", "climate change committee",
+    "carbon tracker", "ember", "aurora energy research",
+    "cornwall insight", "national infrastructure commission",
+}
+
+# Known competitors — items mentioning these route to competitor
+COMPETITOR_NAMES = {
+    "ørsted", "orsted", "sse renewables", "equinor", "vattenfall",
+    "iberdrola", "scottishpower renewables", "ocean winds",
+    "blue gem wind", "corio generation",
+}
+
+# Regulatory bodies — items mentioning these route to regulatory
+REGULATORY_BODIES = {
+    "ofgem", "neso", "crown estate", "planning inspectorate",
+    "cma", "competition and markets authority",
+}
 
 THEME_SPECIFIC_INSTRUCTIONS = {
     "parliamentary": (
@@ -162,31 +152,74 @@ CLIENT CONTEXT:
 
 MONITORING THEME: {theme_label} (Section {section_number})
 
+CRITICAL DATE RULE: This report covers {start_date} to {end_date} ONLY.
+Do NOT include any development dated before {start_date}. If an item is
+from a previous week, it does not belong in this report regardless of
+how important it is. The only exception is a consultation or process
+from a previous week that has a NEW development this week (e.g. a new
+response published, a deadline reached).
+
+DEDUPLICATION RULE: If multiple source items cover the same development
+(e.g. the same government announcement reported by Bloomberg, GOV.UK, and
+Recharge News), consolidate them into a SINGLE item card. List all sources
+in the source field (e.g. "GOV.UK press release; Bloomberg; Recharge News").
+Include all source_item fingerprints. Do NOT create separate items for the
+same development from different sources.
+
 EXTRACTED FACTS:
 {facts_json}
 
-ORIGINAL SOURCE ITEMS (for reference):
-{items_brief}
-
-Using ONLY the extracted facts above, produce analysis items. Do not add information not present in the facts.
+ORIGINAL SOURCE ITEMS (with full content for grounding):
+{items_with_content}
 
 For each significant development, produce a JSON object with:
 - ref: section reference (e.g. "{section_number}.1", "{section_number}.2")
 - headline: concise title
 - date: the date of the event/publication
 - source: where this came from (e.g. "GOV.UK press release, DESNZ" or "Hansard, House of Lords")
-- summary: 2-4 sentences. What happened. Plain English, precise about dates, names, amounts. ONLY state facts from the extracted facts.
-- client_relevance: 2-3 sentences. Why this matters to {client_name} SPECIFICALLY — reference specific projects, commercial positions, or pipeline impacts.
+- summary: 2-4 sentences. What happened. Plain English, precise about dates, names, amounts.
+- client_relevance: 2-3 sentences. Why this matters to {client_name} SPECIFICALLY.
 - recommended_action: specific action (e.g. "Brief client", "Prepare consultation response", "Monitor")
 - escalation: "IMMEDIATE" | "HIGH" | "STANDARD"
 - rag: "RED" | "AMBER" | "GREEN"
-- confidence: float 0-1. Base this on how well-supported the facts are. If facts are clear and specific, use 0.8+. If ambiguous or thin, use 0.5-0.7.
-- source_items: array of fingerprint strings from the facts that support this analysis
+- confidence: float 0-1
+- source_items: array of fingerprint strings from the source items that support this analysis
 
 {theme_specific_instructions}
 
-RULES:
-- ONLY use information from the extracted facts. Do not add external knowledge.
+FACTUALITY RULES (critical — your output will be evaluated against the source text):
+- Your summary MUST only contain facts stated in the extracted facts or source item content above.
+- If a number, date, name, or claim is not explicitly in the sources, do NOT include it.
+- Do NOT add context from your own knowledge. If the source says "offshore wind" don't add that it's "in the North Sea" unless the source says so.
+- Do NOT attribute statements to specific people or organisations unless the source explicitly names them. If a Hansard contribution does not identify the speaker, say "a member" or "a Lords member" rather than guessing the name.
+- CRITICAL: Do NOT write "DESNZ announced", "the Department for Energy Security announced", "MoD announced", or similar department-specific attribution. Many GOV.UK publications are cross-departmental or published by agencies. Say "the government published" or "a government consultation" unless the source text EXPLICITLY names the specific department. This is a factuality requirement — fabricated attribution will be flagged.
+- Your summary must ONLY contain information present in the source material provided. Do not infer dates, numbers, or facts that are not explicitly stated in the source snippets. If a source snippet is ambiguous or incomplete, say so rather than filling in details.
+- When in doubt, be conservative. A shorter, fully-grounded summary beats a longer one with unsupported claims.
+- Quote specific figures from the sources: MW amounts, £ values, percentages, dates.
+
+CLIENT RELEVANCE — SPECIFICITY RULES (critical — your output will be evaluated for specificity):
+The client_relevance field must reference {client_name}'s SPECIFIC situation. Do NOT write generic energy sector analysis.
+
+BAD (generic — will be flagged):
+  "This is relevant to offshore wind developers as it affects project economics."
+  "RWE should monitor this development as it could impact their UK operations."
+
+GOOD (specific — references actual projects, positions, pipeline):
+  "This directly impacts RWE's Norfolk Vanguard East and West projects (3.1GW combined), which are targeting FID in summer 2026. The strike price of £91.20/MWh confirms commercial viability for these specific assets."
+  "RWE's Sofia project (1.4GW) is the closest comparable UK offshore wind farm to this development. With 100 of 100 turbines now installed, RWE has operational experience directly relevant to the supply chain issues raised."
+
+Always reference specific projects by name and capacity where relevant to the development.
+
+CONFIDENCE CALIBRATION:
+- 0.9-1.0: Government press release, official announcement, Hansard record with specific quotes, confirmed corporate filing
+- 0.8-0.89: Named source in reputable outlet, multiple corroborating sources, specific figures cited
+- 0.7-0.79: Single trade press report, plausible but not independently confirmed
+- 0.5-0.69: Vague source, partial information, or inferred from limited context
+- Below 0.5: Speculative, rumour, or very thin sourcing
+Do NOT default to 0.5. Assess each item individually against this scale.
+
+OTHER RULES:
+- Every item MUST include source_items with at least one fingerprint from the provided items. If you cannot trace a claim to a specific collected item, do not include it in the output. Items with empty source_items will be automatically removed.
 - Summarise in own words with attribution. Never reproduce source text.
 - Do not editorialise or offer political opinion. Facts and analysis only.
 - Every item must answer: What happened? Why does it matter to THIS client? What should we do?
@@ -205,77 +238,118 @@ def _get_tool_input(response, tool_name: str) -> dict:
 
 
 def build_client_context(config: dict) -> str:
-    """Render client config into a concise text block for prompts."""
+    """Render client config into a detailed text block for prompts.
+
+    Includes project details so the analysis model can reference specific
+    projects, capacities, and timelines in client_relevance text.
+    """
     client = config["client"]
     lines = [
         f"Client: {client['name']} ({client['full_name']})",
         f"Sector: {client['sector']}",
         f"Country: {client['country']}",
         "",
-        "Key Projects:",
+        "Key Projects (reference these by name and capacity in client_relevance):",
     ]
     for project in config.get("projects", []):
         cap = f" ({project['capacity_mw']}MW)" if project.get("capacity_mw") else ""
-        lines.append(
-            f"  - {project['name']}{cap}: {project['status']} [{project['priority']}]"
-        )
+        detail = f"  - {project['name']}{cap}: {project['status']} [{project['priority']}]"
+        if project.get("location"):
+            detail += f" — {project['location']}"
+        if project.get("technology"):
+            detail += f", {project['technology']}"
+        lines.append(detail)
 
     lines.extend(["", "Escalation Triggers (IMMEDIATE):"])
     for trigger in config.get("escalation", {}).get("IMMEDIATE", []):
         lines.append(f"  - {trigger}")
 
+    # Add strategic context if available
+    if config.get("client", {}).get("strategic_priorities"):
+        lines.extend(["", "Strategic Priorities:"])
+        for p in config["client"]["strategic_priorities"]:
+            lines.append(f"  - {p}")
+
     return "\n".join(lines)
 
 
+def _route_item(item: dict, config: dict) -> str:
+    """Assign each item to exactly ONE theme.
+
+    Source type first, content override second.
+    """
+    text = f"{item.get('title', '')} {item.get('content', '')}".lower()
+    source = item.get("source_name", "").lower()
+    source_type = item.get("source_type", "")
+
+    # 1. Source-type routing (primary)
+    if source_type == "hansard":
+        if any(r in text for r in REGULATORY_BODIES):
+            return "regulatory_legal"
+        return "parliamentary"
+
+    if source_type == "govuk":
+        if any(r in text for r in REGULATORY_BODIES):
+            return "regulatory_legal"
+        return "policy_government"
+
+    if source_type == "committee":
+        return "parliamentary"
+
+    # 2. Web items — route by source name first
+    # Also check config-derived media names
+    config_media = set()
+    for key in ("media_specialist", "media_national", "media_regional"):
+        for name in config.get("sources", {}).get(key, []):
+            config_media.add(name.lower())
+
+    all_media = MEDIA_OUTLETS | config_media
+    if any(outlet in source for outlet in all_media):
+        return "media_coverage"
+
+    if any(body in source for body in INDUSTRY_BODIES):
+        return "competitor_industry"
+
+    # 3. Web items — route by content
+    if any(comp in text for comp in COMPETITOR_NAMES):
+        return "competitor_industry"
+
+    if any(r in text for r in REGULATORY_BODIES):
+        return "regulatory_legal"
+
+    if any(kw in text for kw in [
+        "protest", "campaign", "opposition",
+        "community", "ngo", "activist",
+    ]):
+        return "stakeholder_third_party"
+
+    # 4. Default: policy_government
+    return "policy_government"
+
+
 def route_items_to_themes(items: list[dict], config: dict) -> dict[str, list[dict]]:
-    """Route items to monitoring themes. Each item goes to exactly one theme."""
-    routing = {k: dict(v) for k, v in THEME_ROUTING.items()}
-
-    media_names = (
-        config.get("sources", {}).get("media_specialist", []) +
-        config.get("sources", {}).get("media_national", []) +
-        config.get("sources", {}).get("media_regional", [])
-    )
-    routing["media_coverage"]["keywords"] = [n.lower() for n in media_names]
-
-    competitor_kws = flatten_keywords(config.get("keywords", {}).get("competitors", []))
-    industry_names = config.get("sources", {}).get("industry", [])
-    if isinstance(industry_names, list) and industry_names and isinstance(industry_names[0], dict):
-        industry_names = [s["name"] for s in industry_names]
-    routing["competitor_industry"]["keywords"] = competitor_kws + [n.lower() for n in industry_names]
-
-    theme_items: dict[str, list[dict]] = {tid: [] for tid in routing}
+    """Route items to monitoring themes. Each item assigned to exactly one theme."""
+    theme_items: dict[str, list[dict]] = {
+        "policy_government": [],
+        "parliamentary": [],
+        "regulatory_legal": [],
+        "media_coverage": [],
+        "social_media": [],
+        "competitor_industry": [],
+        "stakeholder_third_party": [],
+    }
 
     for item in items:
-        text = f"{item.get('title', '')} {item.get('content', '')} {item.get('source_name', '')}".lower()
-        source_type = item.get("source_type", "")
-        assigned = False
-
-        # Priority 1: source type match (definitive routing)
-        for theme_id in THEME_PRIORITY:
-            rules = routing[theme_id]
-            if source_type in rules.get("source_types", []):
-                theme_items[theme_id].append(item)
-                assigned = True
-                break
-
-        if assigned:
-            continue
-
-        # Priority 2: best keyword match count, tie-broken by theme priority
-        best_theme = None
-        best_count = 0
-        for theme_id in THEME_PRIORITY:
-            rules = routing[theme_id]
-            count = sum(1 for kw in rules.get("keywords", []) if kw in text)
-            if count > best_count:
-                best_count = count
-                best_theme = theme_id
-
-        if best_theme:
-            theme_items[best_theme].append(item)
-        elif item.get("relevance_score", 0) >= 0.15:
+        theme = _route_item(item, config)
+        if theme in theme_items:
+            theme_items[theme].append(item)
+        else:
             theme_items["policy_government"].append(item)
+
+    log.info("Item routing:")
+    for theme, titems in theme_items.items():
+        if titems:
+            log.info(f"  {theme}: {len(titems)} items")
 
     return theme_items
 
@@ -324,6 +398,7 @@ def analyse_theme(
     client_context: str,
     config: dict,
     anthropic_client: anthropic.Anthropic,
+    week_start: datetime | None = None,
 ) -> dict:
     """Analyse a single monitoring theme using two-pass approach."""
     if not items:
@@ -354,13 +429,26 @@ def analyse_theme(
         facts = []
 
     # ── Pass 2: Analyse from facts (Sonnet) ──
-    items_brief = ""
+    # Include full source content so the model can ground claims in actual text
+    items_with_content = ""
     for i, item in enumerate(items[:30], 1):
-        items_brief += (
-            f"[{i}] {item.get('fingerprint', '')} | {item.get('title', '')[:60]} | "
-            f"{item.get('source_name', '')} | Verified: {item.get('verified', False)} | "
-            f"Score: {item.get('relevance_score', 0):.2f}\n"
+        content = item.get("content", "")[:3000]  # Cap per item to fit context
+        items_with_content += (
+            f"\n[{i}] Fingerprint: {item.get('fingerprint', '')}\n"
+            f"    Title: {item.get('title', '')}\n"
+            f"    Source: {item.get('source_name', '')} ({item.get('source_type', '')})\n"
+            f"    Date: {item.get('date', '')}\n"
+            f"    Verified: {item.get('verified', False)}\n"
+            f"    Content: {content}\n"
         )
+
+    # Build date range for prompt
+    if week_start:
+        start_date = week_start.strftime("%-d %B %Y")
+        end_date = (week_start + timedelta(days=6)).strftime("%-d %B %Y")
+    else:
+        start_date = "the reporting week start"
+        end_date = "the reporting week end"
 
     prompt = ANALYSIS_PROMPT.format(
         consultancy_name=config.get("report", {}).get("consultancy_name", "WA Communications"),
@@ -368,9 +456,11 @@ def analyse_theme(
         theme_label=theme_config["label"],
         section_number=theme_config["section"],
         facts_json=json.dumps(facts, indent=2, default=str),
-        items_brief=items_brief,
+        items_with_content=items_with_content,
         client_name=config["client"]["name"],
         theme_specific_instructions=THEME_SPECIFIC_INSTRUCTIONS.get(theme_id, ""),
+        start_date=start_date,
+        end_date=end_date,
     )
 
     try:

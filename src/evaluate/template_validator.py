@@ -40,10 +40,12 @@ def validate_template_compliance(analysis: dict) -> list[dict]:
             if dev.get("rag") not in ("RED", "AMBER", "GREEN"):
                 error("kd_rag_invalid", f"key_developments[{i}] rag='{dev.get('rag')}' invalid")
 
-            # Cross-reference check
+            # Cross-reference check (supports compound refs like "2.1.1 / 2.4.1 / 2.6.1")
             ref = dev.get("section_ref", "")
-            if ref and not _ref_exists_in_sections(ref, analysis.get("sections", {})):
-                error("kd_xref_invalid", f"key_developments[{i}] section_ref '{ref}' not found in sections")
+            if ref:
+                individual_refs = [r.strip() for r in ref.split(" / ")]
+                if not any(_ref_exists_in_sections(r, analysis.get("sections", {})) for r in individual_refs):
+                    error("kd_xref_invalid", f"key_developments[{i}] section_ref '{ref}' not found in sections")
 
     # ── Theme sections ──
     required_themes = [

@@ -54,6 +54,7 @@ async def analyse(
             client_context=client_context,
             config=config,
             anthropic_client=ant_client,
+            week_start=week_start,
         )
         theme_results[theme_id] = result
 
@@ -72,7 +73,7 @@ async def analyse(
     # Merge into full analysis output
     analysis = {
         "metadata": {
-            "client_name": config["client"]["name"],
+            "client_name": config["client"].get("report_display_name", config["client"]["name"]),
             "reporting_period": reporting_period,
             "report_date": datetime.now().strftime("%-d %B %Y"),
             "generated_at": datetime.now().isoformat(),
@@ -97,6 +98,18 @@ async def analyse(
 
     # Ensure all sections have required structure
     _ensure_section_structure(analysis["sections"])
+
+    # Remove any analysed items that have no source provenance
+    for theme_id, theme_data in analysis["sections"].items():
+        if "items" in theme_data:
+            original_count = len(theme_data["items"])
+            theme_data["items"] = [
+                item for item in theme_data["items"]
+                if item.get("source_items") and len(item["source_items"]) > 0
+            ]
+            removed = original_count - len(theme_data["items"])
+            if removed > 0:
+                log.warning(f"Removed {removed} items from {theme_id} with empty source_items")
 
     # Citation verification — flag any source_items fingerprints not in collected items
     citation_warnings = _verify_citations(analysis, items)

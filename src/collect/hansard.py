@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime
+from urllib.parse import urlencode
 
 import httpx
 
@@ -16,11 +17,29 @@ SPOKEN_URL = "https://hansard-api.parliament.uk/search/contributions/Spoken.json
 WRITTEN_URL = "https://hansard-api.parliament.uk/search/contributions/Written.json"
 REDIRECT_URL = "https://hansard-api.parliament.uk/search/parlisearchredirect.json"
 
+# Section 4.5 of monitoring briefing — broadened search terms
 SEARCH_TERMS = [
-    "RWE", "offshore wind", "energy security", "clean power",
-    "CfD", "Contracts for Difference", "NESO", "Ofgem", "DESNZ",
-    "grid connection", "Great British Energy", "Crown Estate",
-    "REMA", "CCUS", "wind farm", "renewable energy",
+    # Client-specific
+    "RWE",
+    # Policy areas
+    "offshore wind", "onshore wind",
+    "energy security", "energy prices", "energy bills",
+    "clean power", "net zero",
+    "CfD", "Contracts for Difference",
+    "NESO", "Ofgem", "DESNZ",
+    "grid connection", "Great British Energy",
+    "Crown Estate", "REMA",
+    "CCUS", "carbon capture",
+    "capacity market",
+    "planning reform",
+    "energy resilience",
+    # Political context
+    "energy crisis",
+    "energy statement",
+    # Ministers (Section 4.5)
+    "Ed Miliband",
+    "Michael Shanks",
+    "Sarah Jones",
 ]
 
 
@@ -96,10 +115,15 @@ async def _search_endpoint(
             "endDate": end.strftime("%Y-%m-%d"),
             "take": 50,
         }
+        log.info(f"Hansard request: {url}?{urlencode(params)}")
+
         resp = await retry_async_call(client.get, url, params=params)
+        log.info(f"Hansard '{term}': HTTP {resp.status_code}")
 
         if resp.status_code in (404, 422, 500, 502, 503):
             log.debug(f"Hansard {resp.status_code} for '{term}' at {url}")
+            if resp.status_code != 404:
+                log.error(f"Hansard API error: {resp.text[:300]}")
             return []
 
         resp.raise_for_status()
@@ -107,7 +131,10 @@ async def _search_endpoint(
 
         results = data.get("Results") or data.get("results") or []
         if not isinstance(results, list):
+            log.warning(f"Hansard '{term}': unexpected results type: {type(results)}")
             return []
+
+        log.info(f"Hansard '{term}': {len(results)} results")
 
         for r in results:
             # Resolve URL from ContributionExtId

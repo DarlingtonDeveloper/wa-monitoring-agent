@@ -28,10 +28,12 @@ load_dotenv()
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
+import httpx
 import opik
 from opik import track
 
 from collect import collect_all
+from collect.content_enricher import enrich_items
 from score import score_and_filter
 from analyse import analyse
 from evaluate import evaluate_report
@@ -42,6 +44,15 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("orchestrator")
+
+
+async def _enrich_thin(items: list[dict]) -> list[dict]:
+    """Enrich items with thin content before scoring."""
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": "WA-Monitoring/1.0"},
+    ) as client:
+        return await enrich_items(items, client)
 
 
 @track(name="full_pipeline")
@@ -85,11 +96,26 @@ def run_pipeline(args):
         raw_items = asyncio.run(collect_all(config, week_start, api_key))
         log.info(f"Collected: {len(raw_items)} raw items")
 
+        # Save raw items before enrichment for diagnostics
+        raw_path = output_dir / f"raw_items_{week_start:%Y-%m-%d}.json"
+        with open(raw_path, "w") as f:
+            json.dump(
+                [item.__dict__ if hasattr(item, "__dict__") else item for item in raw_items],
+                f, indent=2, default=str,
+            )
+        log.info(f"Saved {len(raw_items)} raw items to {raw_path}")
+
+        # ── Stage 1b: ENRICH thin items BEFORE scoring ──
+        log.info("=" * 50)
+        log.info("STAGE 1b: ENRICH THIN ITEMS")
+        log.info("=" * 50)
+        raw_items = asyncio.run(_enrich_thin(raw_items))
+
         # ── Stage 2: SCORE & FILTER ──
         log.info("=" * 50)
         log.info("STAGE 2: SCORE & FILTER")
         log.info("=" * 50)
-        scored_items = asyncio.run(score_and_filter(raw_items, config))
+        scored_items = asyncio.run(score_and_filter(raw_items, config, week_start))
         log.info(f"After scoring: {len(scored_items)} items")
 
         # Cache
@@ -162,7 +188,8 @@ def run_pipeline(args):
     log.info("STAGE 5: GENERATE DOCX")
     log.info("=" * 50)
 
-    client_name_slug = config["client"]["name"].replace(" ", "_")
+    display_name = config["client"].get("report_display_name", config["client"]["name"])
+    client_name_slug = display_name.replace(" ", "_")
     report_filename = f"{client_name_slug}_Weekly_Report_{week_start:%Y-%m-%d}.docx"
     report_path = output_dir / report_filename
 

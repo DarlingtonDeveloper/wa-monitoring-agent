@@ -62,7 +62,7 @@ def build_factuality_cases(analysis: dict, items_cache: list[dict]) -> list[dict
 
             cases.append({
                 "input": "\n".join(source_texts),
-                "output": f"{item.get('summary', '')} {item.get('client_relevance', '')}",
+                "output": item.get("summary", ""),  # Only summary — client_relevance is evaluated by specificity judge
                 "context": source_texts,
                 "reference": item.get("ref", ""),
             })
@@ -83,6 +83,7 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
 
     scores = []
     flagged = []
+    item_details = []
 
     for case in cases:
         try:
@@ -108,7 +109,16 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
 
             result = _get_tool_input(response, "submit_score")
             score = float(result.get("score", 0))
+            reason = result.get("reason", "")
             scores.append(score)
+
+            item_details.append({
+                "reference": case["reference"],
+                "score": score,
+                "reason": reason,
+                "output": case["output"],
+                "input": case["input"],
+            })
 
             if score < 0.7:
                 flagged.append(case["reference"])
@@ -123,6 +133,7 @@ def run_factuality_check(analysis: dict, items_cache: list[dict]) -> dict:
         "mean_score": round(mean_score, 3),
         "flagged_items": flagged,
         "total_checked": len(cases),
+        "item_details": item_details,
     }
 
 

@@ -27,6 +27,17 @@ THEME ANALYSIS RESULTS:
 FORWARD-LOOKING ITEMS:
 {forward_items_text}
 
+CROSS-THEME DEDUPLICATION: Check whether the same development appears in
+multiple theme sections. If the Crown Estate Leasing Round 6 appears in
+both policy_government and regulatory_legal, keep it in the most relevant
+section only and cross-reference from the other. Do not duplicate item cards
+across sections.
+
+NARRATIVE CONNECTION: Where multiple items relate to the same narrative
+(e.g. a new turbine factory + a ban on a competing manufacturer + a turbine
+order for a specific project), note the connection explicitly in the
+emerging_themes section.
+
 Produce:
 
 1. EXECUTIVE SUMMARY

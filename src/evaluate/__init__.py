@@ -39,6 +39,15 @@ def evaluate_report(
         log.error(f"Factuality check failed: {e}")
         factuality = {"mean_score": 0.0, "flagged_items": [], "total_checked": 0}
 
+    # Debug: print flagged factuality items for inspection
+    for detail in factuality.get("item_details", []):
+        if detail["score"] < 0.7:
+            print(f"\n=== FLAGGED: {detail['reference']} (score: {detail['score']:.2f}) ===")
+            print(f"REASON:  {detail.get('reason', 'N/A')}")
+            print(f"SUMMARY: {detail['output'][:300]}")
+            print(f"SOURCE:  {detail['input'][:300]}")
+            print("===")
+
     # 3. Specificity check
     log.info("Running specificity check...")
     try:
